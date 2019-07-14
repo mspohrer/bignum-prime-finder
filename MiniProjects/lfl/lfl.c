@@ -9,13 +9,11 @@
 #include <string.h>
 #include <time.h>
 
-static time_t 
+void
 Time(time_t *buf)
 {
-  time_t t;
-  if((t = time()) < 0)
+  if(time(buf) < 0)
     perror("Time()");
-  return pid;
 }
 
 static int
@@ -34,29 +32,48 @@ int main(int argc, char *argv[])
     printf("%s", "Usage: ./lfl [child count]\n");
     return -1;
   }
-  time_t *buf;
+  time_t *buf = NULL;
   int childCount = atoi(argv[1]);
   int ret, fd, pid;
-  printf("%d\n", childCount);
-  
+  //printf("%d\n", childCount);
+  int filesize = 4096;
+  int offset = filesize / childCount;
   FILE *fp = fopen("lfl.txt", "w");
   fd = fileno(fp);
-
-  if((ret = Fork()) == 0)
+  
+  for (int i = 0; i < childCount; ++i)
   {
-    printf("child\n");
-    fd = dup(fp);
-    pid = getpid();
-    buf = Time(&buf);
-    
-
-
+    if((ret = Fork()) == 0)
+    {
+      //printf("child\n");
+      int childStart = i * offset;
+      int childEnd =  (i + 1) * offset -1;
+      int childOffset = 0;
+      //printf("%d\n", childStart);
+      printf("%d\n", childEnd);
+      fd = dup(fd);
+      fp = fopen("lfl.txt", "w");
+      fseek(fp, childOffset, childStart);
+      pid = getpid();
+      Time(buf);
+      printf("hi");
+      dprintf(fd, "PID: %d/t/t Current time: %ln\n", pid, buf);
+      while ((childOffset += dprintf(1, "PID: %d/t/t Current time: %ln\n", pid, buf)) <= childEnd)
+        printf("%d\n", childOffset);
+      exit(0);
+    }
   }
 
-  else
-    wait(NULL);
+  if (ret != 0) {
+    for (int i = 0; i < childCount; ++i) {
+      wait(NULL);
+    }
+    printf("All children exited!\n");
+  }
 
-  fclose(fd);
+
+
+  fclose(fp);
   return 0;
 }
 
