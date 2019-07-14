@@ -30,20 +30,21 @@ Fork()
 
 int main(int argc, char *argv[])
 {
-  if (argc < 2) {
-    printf("%s", "Usage: ./lfl [child count]\n");
+  if (argc < 4) {
+    printf("%s", "Usage: ./lfl [child count] [size] [logfile name]\n");
     return -1;
   }
   time_t buf;
   int childCount = atoi(argv[1]);
-  int ret, fd, pid;
+  int ret, pid;
   //printf("%d\n", childCount);
-  int filesize = 1024;
+  int filesize = atoi(argv[2]);
+  char * filename = argv[3];
   int offset = filesize / childCount;
-  FILE *fp = fopen("lfl.txt", "w");
+  FILE *fp = fopen(filename, "w");
   int * fds = malloc(childCount);
   FILE **fps = malloc(childCount);
-  fd = fileno(fp);
+  //fd = fileno(fp);
   
   for (int i = 0; i < childCount; ++i)
   {
@@ -54,7 +55,7 @@ int main(int argc, char *argv[])
       int childEnd =  (i + 1) * offset -1;
       //char buffer[offset - 1];
       //fds[childCount] = dup(fd);
-      fps[childCount] = fopen("lfl.txt", "w");
+      fps[childCount] = fopen(filename, "w");
       fds[childCount] = fileno(fps[childCount]);
       //setvbuf(fps[childCount], buffer, _IOLBF, offset - 1);
       fseek(fps[childCount], childOffset, SEEK_SET);
@@ -70,11 +71,9 @@ int main(int argc, char *argv[])
       }
       if (childOffset > childEnd)
         printf("wrote outside buffer\n");
-      /*
       while(childOffset++ < childEnd) {
         dprintf(fds[childCount], '\0');
       }
-      */
       exit(0);
     }
   }
