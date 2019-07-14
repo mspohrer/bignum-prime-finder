@@ -1,5 +1,5 @@
 //Tacy Bechtel and Matthew Spohrer
-
+//ALSP
 //Lock free logging
 
 #include <stdlib.h>
@@ -56,12 +56,12 @@ int main(int argc, char *argv[])
       pid = getpid();
       Time(&buf);
       while ((childOffset += dprintf(fds[childCount], "PID: %d\t\t Current time: %ld\n", pid, buf)) + LOGSIZE <= childEnd) {
+        sleep(1);
         Time(&buf);
       }
-      if (childOffset > childEnd)
+      if (childOffset > childEnd) {
         printf("wrote outside buffer\n");
-      while(childOffset++ < childEnd) {
-        dprintf(fds[childCount], '\0');
+        exit(-1);
       }
       fclose(fps[childCount]);
       exit(0);
@@ -70,7 +70,11 @@ int main(int argc, char *argv[])
 
   if (ret != 0) {
     for (int i = 0; i < childCount; ++i) {
-      wait(NULL);
+      ret = wait(NULL);
+      if (ret){
+        perror("Wait()");
+        exit(ret);
+      }
     }
     printf("All children exited!\n");
   }
@@ -79,6 +83,7 @@ int main(int argc, char *argv[])
 
   free(fps);
   free(fds);
+
   fclose(fp);
   return 0;
 }
