@@ -63,6 +63,7 @@ int main(int argc, char *argv[])
         printf("wrote outside buffer\n");
         exit(-1);
       }
+      fclose(fps[childCount]);
       exit(0);
     }
   }
@@ -77,6 +78,11 @@ int main(int argc, char *argv[])
     }
     printf("All children exited!\n");
   }
+
+
+
+  free(fps);
+  free(fds);
 
   fclose(fp);
   return 0;
