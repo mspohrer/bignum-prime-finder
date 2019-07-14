@@ -1,5 +1,5 @@
 //Tacy Bechtel and Matthew Spohrer
-
+//ALSP
 //Lock free logging
 
 #include <stdlib.h>
