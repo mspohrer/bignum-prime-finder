@@ -9,6 +9,8 @@
 #include <string.h>
 #include <time.h>
 
+#define LOGSIZE strlen("PID: \t\tCurrent time: \n") + sizeof(int) + sizeof(long int)
+
 void
 Time(time_t *buf)
 {
@@ -32,13 +34,15 @@ int main(int argc, char *argv[])
     printf("%s", "Usage: ./lfl [child count]\n");
     return -1;
   }
-  time_t *buf = NULL;
+  time_t buf;
   int childCount = atoi(argv[1]);
   int ret, fd, pid;
   //printf("%d\n", childCount);
-  int filesize = 4096;
+  int filesize = 1024;
   int offset = filesize / childCount;
   FILE *fp = fopen("lfl.txt", "w");
+  int * fds = malloc(childCount);
+  FILE **fps = malloc(childCount);
   fd = fileno(fp);
   
   for (int i = 0; i < childCount; ++i)
@@ -46,20 +50,31 @@ int main(int argc, char *argv[])
     if((ret = Fork()) == 0)
     {
       //printf("child\n");
-      int childStart = i * offset;
+      int childOffset = i * offset;
       int childEnd =  (i + 1) * offset -1;
-      int childOffset = 0;
-      //printf("%d\n", childStart);
-      printf("%d\n", childEnd);
-      fd = dup(fd);
-      fp = fopen("lfl.txt", "w");
-      fseek(fp, childOffset, childStart);
+      //char buffer[offset - 1];
+      //fds[childCount] = dup(fd);
+      fps[childCount] = fopen("lfl.txt", "w");
+      fds[childCount] = fileno(fps[childCount]);
+      //setvbuf(fps[childCount], buffer, _IOLBF, offset - 1);
+      fseek(fps[childCount], childOffset, SEEK_SET);
       pid = getpid();
-      Time(buf);
-      printf("hi");
-      dprintf(fd, "PID: %d/t/t Current time: %ln\n", pid, buf);
-      while ((childOffset += dprintf(1, "PID: %d/t/t Current time: %ln\n", pid, buf)) <= childEnd)
-        printf("%d\n", childOffset);
+      Time(&buf);
+      //printf("hi\n");
+      //dprintf(fd, "PID: %d\t\t Current time: %ld\n", pid, buf);
+      //dprintf(fd, "PID: %d\t\t Current time: %ld\n", pid, buf);
+      while ((childOffset += dprintf(fds[childCount], "PID: %d\t\t Current time: %ld\n", pid, buf)) + LOGSIZE <= childEnd) {
+        //printf("PID: %d\t Offset: %d\n", pid, childOffset);
+        sleep(1);
+        Time(&buf);
+      }
+      if (childOffset > childEnd)
+        printf("wrote outside buffer\n");
+      /*
+      while(childOffset++ < childEnd) {
+        dprintf(fds[childCount], '\0');
+      }
+      */
       exit(0);
     }
   }
