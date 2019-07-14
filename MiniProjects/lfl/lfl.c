@@ -37,36 +37,25 @@ int main(int argc, char *argv[])
   time_t buf;
   int childCount = atoi(argv[1]);
   int ret, pid;
-  //printf("%d\n", childCount);
   int filesize = atoi(argv[2]);
   char * filename = argv[3];
   int offset = filesize / childCount;
   FILE *fp = fopen(filename, "w");
   int * fds = malloc(childCount);
   FILE **fps = malloc(childCount);
-  //fd = fileno(fp);
   
   for (int i = 0; i < childCount; ++i)
   {
     if((ret = Fork()) == 0)
     {
-      //printf("child\n");
       int childOffset = i * offset;
       int childEnd =  (i + 1) * offset -1;
-      //char buffer[offset - 1];
-      //fds[childCount] = dup(fd);
       fps[childCount] = fopen(filename, "w");
       fds[childCount] = fileno(fps[childCount]);
-      //setvbuf(fps[childCount], buffer, _IOLBF, offset - 1);
       fseek(fps[childCount], childOffset, SEEK_SET);
       pid = getpid();
       Time(&buf);
-      //printf("hi\n");
-      //dprintf(fd, "PID: %d\t\t Current time: %ld\n", pid, buf);
-      //dprintf(fd, "PID: %d\t\t Current time: %ld\n", pid, buf);
       while ((childOffset += dprintf(fds[childCount], "PID: %d\t\t Current time: %ld\n", pid, buf)) + LOGSIZE <= childEnd) {
-        //printf("PID: %d\t Offset: %d\n", pid, childOffset);
-        sleep(1);
         Time(&buf);
       }
       if (childOffset > childEnd)
@@ -74,6 +63,7 @@ int main(int argc, char *argv[])
       while(childOffset++ < childEnd) {
         dprintf(fds[childCount], '\0');
       }
+      fclose(fps[childCount]);
       exit(0);
     }
   }
@@ -87,6 +77,8 @@ int main(int argc, char *argv[])
 
 
 
+  free(fps);
+  free(fds);
   fclose(fp);
   return 0;
 }
