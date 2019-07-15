@@ -2,7 +2,10 @@
 //ALSP
 //Lock free logging
 
-//For our program, we created a log file with fopen and passing the  
+// For our program, we created a log file with fopen in the 
+// parent process then fopen in each of the child processes
+// to prevent children from switching in and using the 
+// previously running child's offset. 
 #include <stdlib.h>
 #include <stdio.h>
 #include <unistd.h>
@@ -13,7 +16,7 @@
 // the size of each output
 #define LOGSIZE strlen("PID: \t\tCurrent time: \n") + sizeof(int) + sizeof(long int)
 
-// helper for the time() call
+// helper for the fopen() call
 FILE *
 Fopen(char *filename, char *mode)
 {
