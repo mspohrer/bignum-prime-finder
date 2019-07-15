@@ -95,7 +95,7 @@ int main(int argc, char *argv[])
       // times being outputted
       while ((childOffset += dprintf(fd, "PID: %d\t\tCurrent time: %ld\n", 
               pid, buf)) + LOGSIZE <= childEnd) {
-        //sleep(1);
+        sleep(1);
         Time(&buf);
       }
 
