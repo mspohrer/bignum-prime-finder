@@ -21,6 +21,12 @@
 
 #define ARGMAX 30   //max size of argument I am accepting
 
+struct pipe {
+  char *left;
+  char *right;
+};
+  
+
 static int
 Fork()
 {
@@ -31,6 +37,62 @@ Fork()
   return(pid);
 }
 
+void
+Write(int where_to, char *buf, int size)
+{
+  if (write(where_to, buf, size) < 0) {
+    perror("write()");
+    exit(EXIT_FAILURE);
+  }
+}
+
+void
+Read(int where_from, char *buf, int size)
+{
+  if (read(where_from, buf, size) < 0) {
+    perror("read()");
+    exit(EXIT_FAILURE);
+  }
+}
+
+int
+Parse(char **argv, char *buf, char *token)
+{
+  int i = 0; 
+  token = NULL;
+
+  //Beging parsing user arguments
+  token = strtok(buf," ");
+  do {
+    //create argv array from user arguments
+    argv[i] = malloc(ARGMAX);
+    memset(argv[i], 0, ARGMAX);
+    strncpy(argv[i], token, strlen(token));
+    i++;
+    //continue parsing
+    token = strtok(NULL, " ");
+  } while (token != NULL && i < 20);
+  //exec will want last argument to be null (when to stop)
+  argv[i] = NULL;
+  return i;
+}
+
+void
+Execv(char *cmd, char **argv)
+{
+  execv(cmd, argv);
+  write(STDERR_FILENO, strerror(errno), strlen(strerror(errno)));
+  write(STDOUT_FILENO, "\n", 1);
+  exit(EXIT_FAILURE);
+}
+
+void
+Waitpid(pid_t pid, int status,int option)
+{
+  if ((pid = waitpid(pid, &status, option)) < 0)
+    write(STDERR_FILENO, strerror(errno), strlen(strerror(errno)));
+}
+
 int
 main(void)
 {
@@ -38,7 +100,7 @@ main(void)
   char buf[MAX];
   pid_t pid;
   int status, i, accessed;
-  char *argv[20];
+  char *argv[ARGMAX];
   char *token, *make_cmd, *consume_env;
   char *env = getenv("PATH");
 
@@ -48,38 +110,19 @@ main(void)
     accessed = 0;
 
     //Write prompt line
-    if (write(STDOUT_FILENO, "% ", 2) != 2) {
-      write(STDERR_FILENO, "Write failed!\n", strlen("Write failed!\n"));
-      exit(EXIT_FAILURE);
-    }
+    Write(STDOUT_FILENO, "% ", 2);
 
     //Read in user arguments
-    if (read(STDIN_FILENO, buf, MAX) < 0) {
-      write(STDERR_FILENO, "Read failed!\n", strlen("Read failed!\n"));
-      exit(EXIT_FAILURE);
-    }
+    Read(STDIN_FILENO, buf, MAX);
+
     buf[strlen(buf)-1] = 0; // chomp '\n'
 
     //If no user input, return to the top
     if (strlen(buf) == 0)
       continue;
 
-    //ensure i is reset before use
-    i = 0;
-    token = NULL;
-    //Beging parsing user arguments
-    token = strtok(buf," ");
-    do {
-      //create argv array from user arguments
-      argv[i] = malloc(ARGMAX);
-      memset(argv[i], 0, ARGMAX);
-      strncpy(argv[i], token, strlen(token));
-      i++;
-      //continue parsing
-      token = strtok(NULL, " ");
-    } while (token != NULL && i < 20);
-    //exec will want last argument to be null (when to stop)
-    argv[i] = NULL;
+    // Parses the command line entry, returns the number of tokens
+    i = Parse(argv,buf,token);
 
     // Exit from commandline
     if (strncmp(argv[0], "exit", 4) == 0) {
@@ -91,19 +134,15 @@ main(void)
       exit(EXIT_SUCCESS);
     }
 
+    status = 0;
     //if user provided path, no need to parse it.
     if(access(argv[0], X_OK) == 0) {
       accessed = 1;
       pid = Fork();
-      if (pid == 0) {  // child
-        execv(argv[0], argv);
-        write(STDERR_FILENO, strerror(errno), strlen(strerror(errno)));
-        write(STDOUT_FILENO, "\n", 1);
-        exit(EXIT_FAILURE);
-      }
+      if (pid == 0)   // child
+        Execv(argv[0], argv);
       // parent
-      if ((pid = waitpid(pid, &status, 0)) < 0)
-        write(STDERR_FILENO, strerror(errno), strlen(strerror(errno)));
+      else Waitpid(pid, status, 0);
       break;
     }
     else {
@@ -124,18 +163,12 @@ main(void)
         if(access(make_cmd, X_OK) == 0) {
           accessed = 1;
           pid = Fork();
-          if (pid == 0) {  // child
-            execv(make_cmd, argv);
-            write(STDERR_FILENO, strerror(errno), strlen(strerror(errno)));
-            write(STDOUT_FILENO, "\n", 1);
-            exit(EXIT_FAILURE);
-          }
+          if (pid == 0)  // child
+            Execv(make_cmd, argv);
           // parent
-          if ((pid = waitpid(pid, &status, 0)) < 0) {
-            write(STDERR_FILENO, strerror(errno), strlen(strerror(errno)));
-            break;
+          else Waitpid(pid, status, 0);
+          break;
           }
-        }
         //continue parsing
         token = strtok(NULL, ":");
       } while (token != NULL);
