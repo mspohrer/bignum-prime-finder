@@ -158,6 +158,10 @@ Parse(scall *sc)
     memset(word, 0, strlen(word));
     ++i;
   }
+  int k;
+  for(k = 0; k < i; ++k)
+    printf("%s ", sc->words[k]);
+  printf("%d \n", k);
   if(word) 
   {
     free(word);
@@ -212,6 +216,7 @@ main(void)
   char *prompt = "% ";
   int status;
 
+  status = 0;
   scallConst(&sc);
 
   do {

@@ -55,14 +55,24 @@ Read(int where_from, char *buf, int size)
   }
 }
 
+void
+free_array(char **argv, int i)
+{
+  //FREE YOUR MEMORY, KIDS
+  for (int j=0; j<i; j++) {
+    free(argv[j]);
+    argv[j] = NULL;
+  }
+}
+
 int
-Parse(char **argv, char *buf, char *token)
+Parse(char **argv, char *buf, char *delim)
 {
   int i = 0; 
-  token = NULL;
+  char *token = NULL;
 
   //Beging parsing user arguments
-  token = strtok(buf," ");
+  token = strtok(buf,delim);
   do {
     //create argv array from user arguments
     argv[i] = malloc(ARGMAX);
@@ -70,7 +80,7 @@ Parse(char **argv, char *buf, char *token)
     strncpy(argv[i], token, strlen(token));
     i++;
     //continue parsing
-    token = strtok(NULL, " ");
+    token = strtok(NULL, delim);
   } while (token != NULL && i < 20);
   //exec will want last argument to be null (when to stop)
   argv[i] = NULL;
@@ -93,21 +103,93 @@ Waitpid(pid_t pid, int status,int option)
     write(STDERR_FILENO, strerror(errno), strlen(strerror(errno)));
 }
 
+// goes through the fork/exec process if NO pipes
+void
+fork_and_exec(char **argv)
+{
+  pid_t pid;
+  int status,accessed;
+  char *token, *make_cmd, *consume_env;
+  char *env = getenv("PATH");
+  
+  status = 0;
+  accessed = 0;
+  //if user provided path, no need to parse it.
+  if(access(argv[0], X_OK) == 0) {
+    accessed = 1;
+    pid = Fork();
+    if (pid == 0)   // child
+      Execv(argv[0], argv);
+    // parent
+    else Waitpid(pid, status, 0);
+  }
+  else {
+    //copy of env so program can loop until exited (doesn't destroy original env)
+    consume_env = malloc(strlen(env) + 1);
+    strncpy(consume_env, env, strlen(env));
+    //allocate path holder
+    make_cmd = malloc(PATH_MAX);
+    //begin parsing path options
+    token = strtok(consume_env, ":");
+    do {
+      memset(make_cmd, 0, PATH_MAX);
+      //try to find command form user down each path variable
+      strcat(make_cmd, token);
+      strcat(make_cmd, "/");
+      strncat(make_cmd, argv[0], strlen(argv[0]));
+      //if it's there and we have execute rights, fork and run the command
+      if(access(make_cmd, X_OK) == 0) {
+        accessed = 1;
+        pid = Fork();
+        if (pid == 0)  // child
+          Execv(make_cmd, argv);
+        // parent
+        else Waitpid(pid, status, 0);
+        break;
+        }
+      //continue parsing
+      token = strtok(NULL, ":");
+    } while (token != NULL);
+    //give user output if unable to execute entry
+    if (token == NULL && accessed == 0) {
+      write(STDOUT_FILENO, "Unable to process request\n", 26);
+    }
+    free(consume_env);
+    free(make_cmd);
+  }
+}
+
+// checks for pipes in the command line, returns true if it does
+// false if not
+int
+check_for_pipes(char *buf)
+{
+  int l = strlen(buf);
+  for(int i = 0; i < l; ++i)
+    if(buf[i] == '|') return 1;
+  return 0;
+}
+
+void
+pipes(char **argv, char **cmds, char *buf)
+{
+  int i = Parse(cmds, buf, "|");
+} 
+
+
+
 int
 main(void)
 {
   long MAX = sysconf(_SC_LINE_MAX);
   char buf[MAX];
-  pid_t pid;
-  int status, i, accessed;
+  int i;
   char *argv[ARGMAX];
-  char *token, *make_cmd, *consume_env;
-  char *env = getenv("PATH");
+  char *cmds[ARGMAX];
 
   do {
     //Reset buffer and access indicator on each pass
     memset(buf, 0, MAX);
-    accessed = 0;
 
     //Write prompt line
     Write(STDOUT_FILENO, "% ", 2);
@@ -121,72 +203,25 @@ main(void)
     if (strlen(buf) == 0)
       continue;
 
-    // Parses the command line entry, returns the number of tokens
-    i = Parse(argv,buf,token);
-
-    // Exit from commandline
-    if (strncmp(argv[0], "exit", 4) == 0) {
-      //FREE YOUR MEMORY, KIDS
-      for (int j=0; j<i; j++) {
-        free(argv[j]);
-        argv[j] = NULL;
-      }
-      exit(EXIT_SUCCESS);
-    }
-
-    status = 0;
-    //if user provided path, no need to parse it.
-    if(access(argv[0], X_OK) == 0) {
-      accessed = 1;
-      pid = Fork();
-      if (pid == 0)   // child
-        Execv(argv[0], argv);
-      // parent
-      else Waitpid(pid, status, 0);
-      break;
+    // checks if pipes exist in the commandline entry and if so
+    // directs the flow of control to handle piping otherwise
+    // it handles the single command
+    if(check_for_pipes(buf)){
+        pipes(argv,cmds, buf);
     }
     else {
-      //copy of env so program can loop until exited (doesn't destroy original env)
-      consume_env = malloc(strlen(env) + 1);
-      strncpy(consume_env, env, strlen(env));
-      //allocate path holder
-      make_cmd = malloc(PATH_MAX);
-      //begin parsing path options
-      token = strtok(consume_env, ":");
-      do {
-        memset(make_cmd, 0, PATH_MAX);
-        //try to find command form user down each path variable
-        strcat(make_cmd, token);
-        strcat(make_cmd, "/");
-        strncat(make_cmd, argv[0], strlen(argv[0]));
-        //if it's there and we have execute rights, fork and run the command
-        if(access(make_cmd, X_OK) == 0) {
-          accessed = 1;
-          pid = Fork();
-          if (pid == 0)  // child
-            Execv(make_cmd, argv);
-          // parent
-          else Waitpid(pid, status, 0);
-          break;
-          }
-        //continue parsing
-        token = strtok(NULL, ":");
-      } while (token != NULL);
-      //give user output if unable to execute entry
-      if (token == NULL && accessed == 0) {
-        write(STDOUT_FILENO, "Unable to process request\n", 26);
+      i = Parse(argv,buf, " ");
+      // Exit from commandline
+      if (strncmp(argv[0], "exit", 4) == 0) {
+        free_array(argv, i);
+        exit(EXIT_SUCCESS);
       }
-
+      fork_and_exec(argv);
+      free_array(argv, i);
     }
     
-    //FREE YOUR ALLOCATED MEMORY, KIDS
-    for (int j=0; j<i; j++) {
-      free(argv[j]);
-      argv[j] = NULL;
-    }
-    free(consume_env);
-    free(make_cmd);
 
+    
   } while(1);
   exit(EXIT_SUCCESS);
 }
