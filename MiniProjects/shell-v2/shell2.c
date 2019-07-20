@@ -242,39 +242,106 @@ Pipe(int *fd)
 // forks. At this point, the stdio fd's are changed to those
 // formed by the pipe call so the exec'ing functions will use
 // those fd's for their IO.
+/*void
+pipes(char **argv, char **cmds, char *buf)
+{
+  int i = Parse(cmds, buf, "|");
+  int fd[i-2][2];
+  int k,j;
+  pid_t pid = 0;
+
+  // parent - sets up
+  for(j=0; j < i-1; ++j)
+    Pipe(fd[j]);
+
+  for(k = 0; k < i; ++k){
+    if((pid = Fork()) == 0){ // child
+      // if child is the first entered in the command line
+      if(k == 0){
+        // set its output to the first fd output number
+        dup2(fd[k][1], STDOUT_FILENO);
+fprintf(stderr, "1%s out: %d \n",cmds[k], fd[k][1]);
+        // close all unused fd's for the child proc
+        for(j=0; j<i-1; ++i){
+          close(fd[j][0]);
+          close(fd[j][1]);
+        }
+        // Parse and Exec
+        j = Parse(argv, cmds[k], " ");
+        exec_checks(argv, pid, j);
+        // if the newly forked child is neither the first or last
+      } else if (k != 1 && k < i -1) {
+fprintf(stderr, "2%s in: %d out:%d \n",cmds[k], fd[k-1][0], fd[k][1]);
+        // change its stdout to the kth out fd
+        dup2(fd[k][1], STDOUT_FILENO);
+        // change its stdin to the kth-1 in fd.
+        // this sets it to read in from the last childs output.
+        dup2(fd[k-1][0], STDIN_FILENO);
+        // close all uneccesary fd's
+        for(j=0; j<i-1; ++i){
+          close(fd[j][0]);
+          close(fd[j][1]);
+        }
+        j = Parse(argv, cmds[k], " ");
+        exec_checks(argv, pid, j);
+      } else {
+fprintf(stderr, "%s in: %d \n",cmds[k], fd[k-1][0]);
+        dup2(fd[k-1][0], STDIN_FILENO);
+        for(j=0; j<i-1; ++i){
+          close(fd[j][0]);
+          close(fd[j][1]);
+        }
+        j = Parse(argv, cmds[k], " ");
+        exec_checks(argv, pid, j);
+      }
+    }
+    fprintf(stderr, "1\n");
+  }
+  for(j=0; j<i-1; ++i){
+    close(fd[j][0]);
+    close(fd[j][1]);
+  }
+  for(k = 0; k < i; ++k) 
+  {
+    fprintf(stderr, "sgjklkldjflks\n");
+    wait(NULL);
+  }
+}*/
 void
 pipes(char **argv, char **cmds, char *buf)
 {
   int i = Parse(cmds, buf, "|");
-  int fd[2];
-  int k, rw;
+  int fd[2][2];
+  int k,j;
   pid_t pid = 0;
 
-  rw = 1;
+  for(j = 0; j<2; ++j)
+    Pipe(fd[j]);
+
   for(k = 0; k < i; ++k){
-    if(rw == 1) Pipe(fd);
-    fprintf(stderr,"%d % d after Pipe\n", fd[0], fd[1]);
     if((pid = Fork()) == 0){
-      if(k != 0) {
-        fprintf(stderr,"%d % d after Pipe in\n", fd[0], fd[1]);
-        close(STDIN_FILENO);
-        dup(fd[0]);
-      }
-      if(k < i - 1){
-        fprintf(stderr,"%d % d after Pipe out\n", fd[0], fd[1]);
+      if(k % 2 == 0){
         close(STDOUT_FILENO);
-        dup(fd[1]);
+        dup(fd[0][1]);
+        close(fd[0][0]);
+        close(fd[0][1]);
+        j = Parse(argv, cmds[k], " ");
+        exec_checks(argv, pid, j);
+      } else {
+        close(STDIN_FILENO);
+        dup(fd[0][0]);
+        close(fd[0][0]);
+        close(fd[0][1]);
+        j = Parse(argv, cmds[k], " ");
+        exec_checks(argv, pid, j);
       }
-      close(fd[0]);
-      close(fd[1]);
-      Parse(argv, cmds[k], " ");
-      exec_checks(argv, pid, 0);
     }
-    close(fd[rw]);
-    --rw;
-    if(rw < 0) rw = 1;
   }
+
+  close(fd[0][0]);
+  close(fd[0][1]);
   for(k = 0; k < i; ++k) Waitpid(-1, 0, 0);
+
 }
 
 
