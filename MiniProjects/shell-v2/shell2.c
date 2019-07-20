@@ -169,42 +169,33 @@ pipes(char **argv, char **cmds, char *buf)
 {
   int i = Parse(cmds, buf, "|");
   int fd[2];
-  int k;
+  int k, rw;
   pid_t pid = 0;
 
-  Pipe(fd);
+  rw = 1;
   for(k = 0; k < i; ++k){
+    if(rw == 1) Pipe(fd);
+    fprintf(stderr,"%d % d after Pipe\n", fd[0], fd[1]);
     if((pid = Fork()) == 0){
-      if(k % 2 == 0){
-        close(STDOUT_FILENO);
-        dup(fd[1]);
-        if(k > 0) {
-          close(STDIN_FILENO);
-          dup(fd[0]);
-        }
-        close(fd[0]);
-        close(fd[1]);
-        Parse(argv, cmds[k], " "); 
-        exec_checks(argv, pid);
-      } else {
+      if(k != 0) {
+        fprintf(stderr,"%d % d after Pipe in\n", fd[0], fd[1]);
         close(STDIN_FILENO);
         dup(fd[0]);
-        close(fd[0]);
-        close(fd[1]);
-        if(k < i - 1) {
-          Pipe(fd); 
-          close(STDOUT_FILENO);
-          dup(fd[1]);
-        }
-        close(fd[0]);
-        close(fd[1]);
-        Parse(argv, cmds[k], " "); 
-        exec_checks(argv, pid);
       }
+      if(k < i - 1){
+        fprintf(stderr,"%d % d after Pipe out\n", fd[0], fd[1]);
+        close(STDOUT_FILENO);
+        dup(fd[1]);
+      }
+      close(fd[0]);
+      close(fd[1]);
+      Parse(argv, cmds[k], " "); 
+      exec_checks(argv, pid);
     }
+    close(fd[rw]);
+    --rw;
+    if(rw < 0) rw = 1;
   }
-  close(fd[0]);
-  close(fd[1]);
   for(k = 0; k < i; ++k) wait(NULL);
 } 
 
