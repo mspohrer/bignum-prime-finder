@@ -234,27 +234,27 @@ Pipe(int *fd)
 // forks. At this point, the stdio fd's are changed to those
 // formed by the pipe call so the exec'ing functions will use
 // those fd's for their IO.
-/*void
+void
 pipes(char **argv, char **cmds, char *buf)
 {
-  int i = Parse(cmds, buf, "|");
-  int fd[i-2][2];
+  int cmd_cnt = Parse(cmds, buf, "|");
+  int fd[cmd_cnt-2][2];
   int k,j;
   pid_t pid = 0;
 
   // parent - sets up
-  for(j=0; j < i-1; ++j)
+  for(j=0; j < cmd_cnt-1; ++j)
     Pipe(fd[j]);
 
-  for(k = 0; k < i; ++k){
+  for(k = 0; k < cmd_cnt-1; ++k){
     if((pid = Fork()) == 0){ // child
       // if child is the first entered in the command line
       if(k == 0){
         // set its output to the first fd output number
         dup2(fd[k][1], STDOUT_FILENO);
-fprintf(stderr, "1%s out: %d \n",cmds[k], fd[k][1]);
+//fprintf(stderr, "1%s out: %d \n",cmds[k], fd[k][1]);
         // close all unused fd's for the child proc
-        for(j=0; j<i-1; ++i){
+        for(j=0; j<cmd_cnt-1; ++j){
           close(fd[j][0]);
           close(fd[j][1]);
         }
@@ -262,24 +262,22 @@ fprintf(stderr, "1%s out: %d \n",cmds[k], fd[k][1]);
         j = Parse(argv, cmds[k], " ");
         exec_checks(argv, pid, j);
         // if the newly forked child is neither the first or last
-      } else if (k != 1 && k < i -1) {
-fprintf(stderr, "2%s in: %d out:%d \n",cmds[k], fd[k-1][0], fd[k][1]);
+      } else if (k != 1 && k < cmd_cnt -1) {
         // change its stdout to the kth out fd
         dup2(fd[k][1], STDOUT_FILENO);
         // change its stdin to the kth-1 in fd.
         // this sets it to read in from the last childs output.
         dup2(fd[k-1][0], STDIN_FILENO);
         // close all uneccesary fd's
-        for(j=0; j<i-1; ++i){
+        for(j=0; j<cmd_cnt-1; ++j){
           close(fd[j][0]);
           close(fd[j][1]);
         }
         j = Parse(argv, cmds[k], " ");
         exec_checks(argv, pid, j);
       } else {
-fprintf(stderr, "%s in: %d \n",cmds[k], fd[k-1][0]);
         dup2(fd[k-1][0], STDIN_FILENO);
-        for(j=0; j<i-1; ++i){
+        for(j=0; j<cmd_cnt-1; ++j){
           close(fd[j][0]);
           close(fd[j][1]);
         }
@@ -287,30 +285,29 @@ fprintf(stderr, "%s in: %d \n",cmds[k], fd[k-1][0]);
         exec_checks(argv, pid, j);
       }
     }
-    fprintf(stderr, "1\n");
   }
-  for(j=0; j<i-1; ++i){
+  for(j=0; j<cmd_cnt-1; ++j){
     close(fd[j][0]);
     close(fd[j][1]);
   }
-  for(k = 0; k < i; ++k) 
+  for(k = 0; k < cmd_cnt; ++k) 
   {
-    fprintf(stderr, "sgjklkldjflks\n");
     wait(NULL);
   }
-}*/
+}
+/*
 void
 pipes(char **argv, char **cmds, char *buf)
 {
-  int i = Parse(cmds, buf, "|");
+  int cmd_cnt = Parse(cmds, buf, "|");
   int fd[2][2];
   int k,j;
   pid_t pid = 0;
 
   for(j = 0; j<2; ++j)
-    Pipe(fd[j]);
+    Pipe(fd);
 
-  for(k = 0; k < i; ++k){
+  for(k = 0; k < cmd_cnt; ++k){
     if((pid = Fork()) == 0){
       if(k % 2 == 0){
         close(STDOUT_FILENO);
@@ -331,8 +328,9 @@ pipes(char **argv, char **cmds, char *buf)
   }
   close(fd[0][0]);
   close(fd[0][1]);
-  for(k = 0; k < i; ++k) wait(NULL);
+  for(k = 0; k < cmd_cnt; ++k) wait(NULL);
 }
+*/
 
 
 int
