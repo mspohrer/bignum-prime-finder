@@ -20,7 +20,7 @@
 #include <limits.h>
 
 #define ARGMAX 30   //max size of argument I am accepting
-static int ACCT_ON = 0;
+int ACCT_ON = 0;
 
 static int
 Fork()
@@ -54,7 +54,7 @@ Read(int where_from, char *buf, int size)
     }
     buf[i] = c;
     i++;
-  } while ( c != '\n' && c != EOF && i < size);
+  } while ( c != '\n' && c != EOF && c != 0 && i < size);
   buf[i] = '\0';
   return 0;
 }
@@ -69,7 +69,7 @@ free_array(char **argv, int i)
   }
 }
 
-void
+int
 exitbuiltin(char **argv, int argc)
 {
   //char argc = sizeof(argv) / sizeof(argv[0]);
@@ -78,10 +78,11 @@ exitbuiltin(char **argv, int argc)
   exit(EXIT_SUCCESS);
 }
 
-void
-runbuiltin(char **argv)
+int
+runbuiltin(char **argv, int argc)
 {
-  return;
+  ACCT_ON = 1;
+  return 0;
 }
 
 //Code borrowed from xv6 sh.c
@@ -155,8 +156,15 @@ Execv(char *cmd, char **argv)
 void
 Waitpid(pid_t pid, int status,int option)
 {
-  if ((pid = waitpid(pid, &status, option)) < 0)
-    write(STDERR_FILENO, strerror(errno), strlen(strerror(errno)));
+  if (ACCT_ON) {
+    struct rusage *rusage = NULL;
+    if ((pid = wait4(pid, &status, option, rusage)) < 0)
+      write(STDERR_FILENO, strerror(errno), strlen(strerror(errno)));
+  }
+  else {
+    if ((pid = waitpid(pid, &status, option)) < 0)
+      write(STDERR_FILENO, strerror(errno), strlen(strerror(errno)));
+  }
 }
 
 // goes checks the command and exec process
@@ -329,9 +337,11 @@ pipes(char **argv, char **cmds, char *buf)
       }
     }
   }
+
   close(fd[0][0]);
   close(fd[0][1]);
-  for(k = 0; k < i; ++k) wait(NULL);
+  for(k = 0; k < i; ++k) Waitpid(-1, 0, 0);
+
 }
 
 
