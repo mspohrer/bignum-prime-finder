@@ -40,13 +40,22 @@ Write(int where_to, char *buf, int size)
   }
 }
 
-void
+int
 Read(int where_from, char *buf, int size)
 {
-  if (read(where_from, buf, size) < 0) {
-    perror("read()");
-    exit(EXIT_FAILURE);
-  }
+  int c, i = 0;
+  char * exitMsg = "\nTo exit, please type \"exit\"\n";
+  do {
+    c = getc(stdin);
+    if (c == EOF) {
+      Write(STDOUT_FILENO, exitMsg, strlen(exitMsg));
+      return 1;
+    }
+    buf[i] = c;
+    i++;
+  } while ( c != '\n' && c != EOF && i < size);
+  buf[i] = '\0';
+  return 0;
 }
 
 void
@@ -62,7 +71,7 @@ free_array(char **argv, int i)
 int
 Parse(char **argv, char *buf, char *delim)
 {
-  int i = 0; 
+  int i = 0;
   char *token = NULL;
 
   //Beging parsing user arguments
@@ -104,12 +113,14 @@ exec_checks(char **argv, int pid)
   int status,accessed;
   char *token, *make_cmd, *consume_env;
   char *env = getenv("PATH");
-  
+
   status = 0;
   accessed = 0;
   //if user provided path, no need to parse it.
   if(access(argv[0], X_OK) == 0) {
     accessed = 1;
+    if (pid == -1)
+      pid = Fork();
     if (pid == 0)   // child
       Execv(argv[0], argv);
     // parent
@@ -132,6 +143,8 @@ exec_checks(char **argv, int pid)
       //if it's there and we have execute rights, fork and run the command
       if(access(make_cmd, X_OK) == 0) {
         accessed = 1;
+        if (pid == -1)
+          pid = Fork();
         if (pid == 0)  // child
           Execv(make_cmd, argv);
         // parent
@@ -158,8 +171,8 @@ Pipe(int *fd)
     exit(EXIT_FAILURE);
   }
 }
-  
-// called in the case there are pipes. It breaks the command 
+
+// called in the case there are pipes. It breaks the command
 // line entry into the seperate commands, opens a pipe, and
 // forks. At this point, the stdio fd's are changed to those
 // formed by the pipe call so the exec'ing functions will use
@@ -189,7 +202,7 @@ pipes(char **argv, char **cmds, char *buf)
       }
       close(fd[0]);
       close(fd[1]);
-      Parse(argv, cmds[k], " "); 
+      Parse(argv, cmds[k], " ");
       exec_checks(argv, pid);
     }
     close(fd[rw]);
@@ -197,7 +210,8 @@ pipes(char **argv, char **cmds, char *buf)
     if(rw < 0) rw = 1;
   }
   for(k = 0; k < i; ++k) wait(NULL);
-} 
+}
+
 
 int
 main(void)
@@ -217,14 +231,14 @@ main(void)
     Write(STDOUT_FILENO, "% ", 2);
 
     //Read in user arguments
-    Read(STDIN_FILENO, buf, MAX);
+    if (Read(STDIN_FILENO, buf, MAX))
+      continue;
 
     buf[strlen(buf)-1] = 0; // chomp '\n'
 
     //If no user input, return to the top
     if (strlen(buf) == 0)
       continue;
-
     // checks if pipes exist in the commandline entry and if so
     // directs the flow of control to handle piping otherwise
     // it handles the single command
@@ -238,13 +252,14 @@ main(void)
         free_array(argv, i);
         exit(EXIT_SUCCESS);
       }
-      pid = Fork();
+//      pid = Fork();
+      pid = -1;
       exec_checks(argv, pid);
       free_array(argv, i);
     }
-    
 
-    
+
+
   } while(1);
   exit(EXIT_SUCCESS);
 }
