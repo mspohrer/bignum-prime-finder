@@ -20,6 +20,7 @@
 #include <limits.h>
 
 #define ARGMAX 30   //max size of argument I am accepting
+static int ACCT_ON = 0;
 
 static int
 Fork()
@@ -68,6 +69,58 @@ free_array(char **argv, int i)
   }
 }
 
+void
+exitbuiltin(char **argv, int argc)
+{
+  //char argc = sizeof(argv) / sizeof(argv[0]);
+  //Write(STDOUT_FILENO, &argc, sizeof(argc));
+  free_array(argv, argc);
+  exit(EXIT_SUCCESS);
+}
+
+void
+runbuiltin(char **argv)
+{
+  return;
+}
+
+//Code borrowed from xv6 sh.c
+typedef int funcPtr_t(char **, int);
+typedef struct {
+  char       *cmd;
+  funcPtr_t  *name;
+} dispatchTableEntry_t;
+
+
+dispatchTableEntry_t fdt[] = {
+  {"exit", exitbuiltin},
+  {"run", runbuiltin}
+};
+int FDTcount = sizeof(fdt) / sizeof(fdt[0]); // # entris in FDT
+
+void
+dobuiltin(char **argv, int argc) {
+  int i;
+
+  for (i=0; i<FDTcount; i++)
+    if (strncmp(argv[0], fdt[i].cmd, strlen(fdt[i].cmd)) == 0)
+     (*fdt[i].name)(argv, argc);
+}
+
+//End of code borrowed from xv6
+
+int
+useBuiltin(char **argv, int argc)
+{
+  int len = strlen(argv[0]);
+  if (strncmp(argv[0], "exit", len < 4 ? len : 4) == 0 || strncmp(argv[0], "run", len < 3 ? len : 3) == 0) {
+    dobuiltin(argv, argc);
+    return 1;
+  }
+  return 0;
+}
+
+
 int
 Parse(char **argv, char *buf, char *delim)
 {
@@ -84,7 +137,7 @@ Parse(char **argv, char *buf, char *delim)
     i++;
     //continue parsing
     token = strtok(NULL, delim);
-  } while (token != NULL && i < 20);
+  } while (token != NULL && i < ARGMAX);
   //exec will want last argument to be null (when to stop)
   argv[i] = NULL;
   return i;
@@ -108,7 +161,7 @@ Waitpid(pid_t pid, int status,int option)
 
 // goes checks the command and exec process
 void
-exec_checks(char **argv, int pid)
+exec_checks(char **argv, int pid, int argc)
 {
   int status,accessed;
   char *token, *make_cmd, *consume_env;
@@ -125,6 +178,10 @@ exec_checks(char **argv, int pid)
       Execv(argv[0], argv);
     // parent
     else Waitpid(pid, status, 0);
+  }
+  else if (useBuiltin(argv, argc)) {
+    Write(STDOUT_FILENO, "found\n", 6);
+    return;
   }
   else {
     //copy of env so program can loop until exited (doesn't destroy original env)
@@ -150,7 +207,7 @@ exec_checks(char **argv, int pid)
         // parent
         else Waitpid(pid, status, 0);
         break;
-        }
+      }
       //continue parsing
       token = strtok(NULL, ":");
     } while (token != NULL);
@@ -203,7 +260,7 @@ pipes(char **argv, char **cmds, char *buf)
       close(fd[0]);
       close(fd[1]);
       Parse(argv, cmds[k], " ");
-      exec_checks(argv, pid);
+      exec_checks(argv, pid, 0);
     }
     close(fd[rw]);
     --rw;
@@ -247,14 +304,17 @@ main(void)
     }
     else {
       i = Parse(argv,buf, " ");
+      printf("%i\n", i);
+      /* TODO REMOVE THIS WHEN BUILTINS DONE
       // Exit from commandline
       if (strncmp(argv[0], "exit", 4) == 0) {
         free_array(argv, i);
         exit(EXIT_SUCCESS);
       }
+      */
 //      pid = Fork();
       pid = -1;
-      exec_checks(argv, pid);
+      exec_checks(argv, pid, i);
       free_array(argv, i);
     }
 
