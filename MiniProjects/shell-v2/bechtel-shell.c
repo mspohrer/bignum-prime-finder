@@ -21,12 +21,6 @@
 
 #define ARGMAX 30   //max size of argument I am accepting
 
-struct pipe {
-  char *left;
-  char *right;
-};
-  
-
 static int
 Fork()
 {
@@ -103,11 +97,10 @@ Waitpid(pid_t pid, int status,int option)
     write(STDERR_FILENO, strerror(errno), strlen(strerror(errno)));
 }
 
-// goes through the fork/exec process if NO pipes
+// goes checks the command and exec process
 void
-fork_and_exec(char **argv)
+exec_checks(char **argv, int pid)
 {
-  pid_t pid;
   int status,accessed;
   char *token, *make_cmd, *consume_env;
   char *env = getenv("PATH");
@@ -117,7 +110,6 @@ fork_and_exec(char **argv)
   //if user provided path, no need to parse it.
   if(access(argv[0], X_OK) == 0) {
     accessed = 1;
-    pid = Fork();
     if (pid == 0)   // child
       Execv(argv[0], argv);
     // parent
@@ -140,7 +132,6 @@ fork_and_exec(char **argv)
       //if it's there and we have execute rights, fork and run the command
       if(access(make_cmd, X_OK) == 0) {
         accessed = 1;
-        pid = Fork();
         if (pid == 0)  // child
           Execv(make_cmd, argv);
         // parent
@@ -159,24 +150,63 @@ fork_and_exec(char **argv)
   }
 }
 
-// checks for pipes in the command line, returns true if it does
-// false if not
-int
-check_for_pipes(char *buf)
+void
+Pipe(int *fd)
 {
-  int l = strlen(buf);
-  for(int i = 0; i < l; ++i)
-    if(buf[i] == '|') return 1;
-  return 0;
+  if(pipe(fd) == -1){
+    perror("Pipe()");
+    exit(EXIT_FAILURE);
+  }
 }
-
+  
+// called in the case there are pipes. It breaks the command 
+// line entry into the seperate commands, opens a pipe, and
+// forks. At this point, the stdio fd's are changed to those
+// formed by the pipe call so the exec'ing functions will use
+// those fd's for their IO.
 void
 pipes(char **argv, char **cmds, char *buf)
 {
   int i = Parse(cmds, buf, "|");
+  int fd[2];
+  int k;
+  pid_t pid = 0;
+
+  Pipe(fd);
+  for(k = 0; k < i; ++k){
+    if((pid = Fork()) == 0){
+      if(k % 2 == 0){
+        close(STDOUT_FILENO);
+        dup(fd[1]);
+        if(k > 0) {
+          close(STDIN_FILENO);
+          dup(fd[0]);
+        }
+        close(fd[0]);
+        close(fd[1]);
+        Parse(argv, cmds[k], " "); 
+        exec_checks(argv, pid);
+      } else {
+        close(STDIN_FILENO);
+        dup(fd[0]);
+        close(fd[0]);
+        close(fd[1]);
+        if(k < i - 1) {
+          Pipe(fd); 
+          close(STDOUT_FILENO);
+          dup(fd[1]);
+        }
+        close(fd[0]);
+        close(fd[1]);
+        Parse(argv, cmds[k], " "); 
+        exec_checks(argv, pid);
+      }
+    }
+  }
+  close(fd[0]);
+  close(fd[1]);
+  for(k = 0; k < i; ++k) wait(NULL);
 } 
-
-
 
 int
 main(void)
@@ -186,6 +216,7 @@ main(void)
   int i;
   char *argv[ARGMAX];
   char *cmds[ARGMAX];
+  pid_t pid;
 
   do {
     //Reset buffer and access indicator on each pass
@@ -206,8 +237,8 @@ main(void)
     // checks if pipes exist in the commandline entry and if so
     // directs the flow of control to handle piping otherwise
     // it handles the single command
-    if(check_for_pipes(buf)){
-        pipes(argv,cmds, buf);
+    if(strchr(buf, '|')){
+      pipes(argv,cmds, buf);
     }
     else {
       i = Parse(argv,buf, " ");
@@ -216,7 +247,8 @@ main(void)
         free_array(argv, i);
         exit(EXIT_SUCCESS);
       }
-      fork_and_exec(argv);
+      pid = Fork();
+      exec_checks(argv, pid);
       free_array(argv, i);
     }
     
