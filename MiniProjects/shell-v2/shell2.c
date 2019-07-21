@@ -20,7 +20,7 @@
 #include <limits.h>
 
 #define ARGMAX 30   //max size of argument I am accepting
-static int ACCT_ON = 0;
+int ACCT_ON = 0;
 
 static int
 Fork()
@@ -54,7 +54,7 @@ Read(int where_from, char *buf, int size)
     }
     buf[i] = c;
     i++;
-  } while ( c != '\n' && c != EOF && i < size);
+  } while ( c != '\n' && c != EOF && c != 0 && i < size);
   buf[i] = '\0';
   return 0;
 }
@@ -69,7 +69,7 @@ free_array(char **argv, int i)
   }
 }
 
-void
+int
 exitbuiltin(char **argv, int argc)
 {
   //char argc = sizeof(argv) / sizeof(argv[0]);
@@ -78,10 +78,11 @@ exitbuiltin(char **argv, int argc)
   exit(EXIT_SUCCESS);
 }
 
-void
-runbuiltin(char **argv)
+int
+runbuiltin(char **argv, int argc)
 {
-  return;
+  ACCT_ON = 1;
+  return 0;
 }
 
 //Code borrowed from xv6 sh.c
@@ -155,8 +156,15 @@ Execv(char *cmd, char **argv)
 void
 Waitpid(pid_t pid, int status,int option)
 {
-  if ((pid = waitpid(pid, &status, option)) < 0)
-    write(STDERR_FILENO, strerror(errno), strlen(strerror(errno)));
+  if (ACCT_ON) {
+    struct rusage *rusage = NULL;
+    if ((pid = wait4(pid, &status, option, rusage)) < 0)
+      write(STDERR_FILENO, strerror(errno), strlen(strerror(errno)));
+  }
+  else {
+    if ((pid = waitpid(pid, &status, option)) < 0)
+      write(STDERR_FILENO, strerror(errno), strlen(strerror(errno)));
+  }
 }
 
 // goes checks the command and exec process
@@ -246,13 +254,12 @@ pipes(char **argv, char **cmds, char *buf)
   for(j=0; j < cmd_cnt-1; ++j)
     Pipe(fd[j]);
 
-  for(k = 0; k < cmd_cnt-1; ++k){
+  for(k = 0; k < cmd_cnt; ++k){
     if((pid = Fork()) == 0){ // child
       // if child is the first entered in the command line
       if(k == 0){
         // set its output to the first fd output number
         dup2(fd[k][1], STDOUT_FILENO);
-//fprintf(stderr, "1%s out: %d \n",cmds[k], fd[k][1]);
         // close all unused fd's for the child proc
         for(j=0; j<cmd_cnt-1; ++j){
           close(fd[j][0]);
@@ -262,7 +269,7 @@ pipes(char **argv, char **cmds, char *buf)
         j = Parse(argv, cmds[k], " ");
         exec_checks(argv, pid, j);
         // if the newly forked child is neither the first or last
-      } else if (k != 1 && k < cmd_cnt -1) {
+      } else if (k < cmd_cnt -1) {
         // change its stdout to the kth out fd
         dup2(fd[k][1], STDOUT_FILENO);
         // change its stdin to the kth-1 in fd.
@@ -291,47 +298,8 @@ pipes(char **argv, char **cmds, char *buf)
     close(fd[j][1]);
   }
   for(k = 0; k < cmd_cnt; ++k) 
-  {
     wait(NULL);
-  }
 }
-/*
-void
-pipes(char **argv, char **cmds, char *buf)
-{
-  int cmd_cnt = Parse(cmds, buf, "|");
-  int fd[2][2];
-  int k,j;
-  pid_t pid = 0;
-
-  for(j = 0; j<2; ++j)
-    Pipe(fd);
-
-  for(k = 0; k < cmd_cnt; ++k){
-    if((pid = Fork()) == 0){
-      if(k % 2 == 0){
-        close(STDOUT_FILENO);
-        dup(fd[0][1]);
-        close(fd[0][0]);
-        close(fd[0][1]);
-        j = Parse(argv, cmds[k], " ");
-        exec_checks(argv, pid, j);
-      } else {
-        close(STDIN_FILENO);
-        dup(fd[0][0]);
-        close(fd[0][0]);
-        close(fd[0][1]);
-        j = Parse(argv, cmds[k], " ");
-        exec_checks(argv, pid, j);
-      }
-    }
-  }
-  close(fd[0][0]);
-  close(fd[0][1]);
-  for(k = 0; k < cmd_cnt; ++k) wait(NULL);
-}
-*/
-
 
 int
 main(void)
