@@ -1,14 +1,6 @@
-// simple shell
-// This program takes whatever is input and executes it as a single command.
-// This is problematic. While "ls" works, try "ls -FC" or "ls "
-// Based on APUE3e p. 12
-// 1. Remove fgets and replace with read.
-// 2. Remove printf and replace with write.
-// 3. Remove call to error() and replace with write, strerror, and exit.
-// 4. If command path is not specified, then use the PATH environment
-//    variable to find the command.
-// 5. Add "exit" command to leave the shell
-// 6. Replace execlp with execv.
+// Shell v2
+// Tacy Bechtel and Matthew Spohrer
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -21,7 +13,7 @@
 #include <sys/resource.h>
 
 #define ARGMAX 30   //max size of argument I am accepting
-int ACCT_ON = 0;
+int ACCT_ON = 0;    // global variable. when set to 1, processes use accounting
 
 static int
 Fork()
@@ -42,8 +34,9 @@ Write(int where_to, char *buf, int size)
   }
 }
 
+// Read calls getc in order to respond when use types ^d.
 int
-Read(int where_from, char *buf, int size)
+Read(char *buf, int size)
 {
   int c, i = 0;
   char * exitMsg = "\nTo exit, please type \"exit\"\n";
@@ -70,15 +63,17 @@ free_array(char **argv, int i)
   }
 }
 
+// frees argument array before closing program.
 int
 exitbuiltin(char **argv, int argc)
 {
-  //char argc = sizeof(argv) / sizeof(argv[0]);
-  //Write(STDOUT_FILENO, &argc, sizeof(argc));
   free_array(argv, argc);
   exit(EXIT_SUCCESS);
 }
 
+// sets acct_on variable; after this is called parents
+// obtain resource information about their children after
+// the childrenn terminate
 int
 runbuiltin(char **argv, int argc)
 {
@@ -86,42 +81,38 @@ runbuiltin(char **argv, int argc)
   return 0;
 }
 
-//Code borrowed from xv6 sh.c
+//Code borrowed from xv6 sh.c and modified to fit our needs
+
+//FuncPtr modified to take char** and int so exit builtin can clean up
+//argument array before exiting
 typedef int funcPtr_t(char **, int);
 typedef struct {
   char       *cmd;
   funcPtr_t  *name;
 } dispatchTableEntry_t;
 
-
+//dispatch table of available builtins
 dispatchTableEntry_t fdt[] = {
   {"exit", exitbuiltin},
   {"run", runbuiltin}
 };
 int FDTcount = sizeof(fdt) / sizeof(fdt[0]); // # entris in FDT
 
-void
+//returns 1 if a builtin was found and used
+int
 dobuiltin(char **argv, int argc) {
   int i;
 
-  for (i=0; i<FDTcount; i++)
-    if (strncmp(argv[0], fdt[i].cmd, strlen(fdt[i].cmd)) == 0)
+  for (i=0; i<FDTcount; i++) {
+    if (strncmp(argv[0], fdt[i].cmd, strlen(fdt[i].cmd)) == 0) {
      (*fdt[i].name)(argv, argc);
-}
-
-//End of code borrowed from xv6
-
-int
-useBuiltin(char **argv, int argc)
-{
-  int len = strlen(argv[0]);
-  if (strncmp(argv[0], "exit", len < 4 ? len : 4) == 0 || strncmp(argv[0], "run", len < 3 ? len : 3) == 0) {
-    dobuiltin(argv, argc);
-    return 1;
+     return 1;
+    }
   }
   return 0;
 }
 
+//End of code borrowed from xv6
 
 int
 Parse(char **argv, char *buf, char *delim)
@@ -154,6 +145,7 @@ Execv(char *cmd, char **argv)
   exit(EXIT_FAILURE);
 }
 
+//if "run" builtin has been called, processes use wait4. Otherwise they use waitpid
 void
 Waitpid(pid_t pid, int status,int option)
 {
@@ -172,6 +164,8 @@ Waitpid(pid_t pid, int status,int option)
 }
 
 // goes checks the command and exec process
+// if pid is passed as -1, calling routine needs this function to fork.
+// otherwise 
 void
 exec_checks(char **argv, int pid, int argc)
 {
@@ -191,8 +185,7 @@ exec_checks(char **argv, int pid, int argc)
     // parent
     else Waitpid(pid, status, 0);
   }
-  else if (useBuiltin(argv, argc)) {
-    Write(STDOUT_FILENO, "found\n", 6);
+  else if (dobuiltin(argv, argc)) {
     return;
   }
   else {
@@ -329,7 +322,7 @@ main(void)
     Write(STDOUT_FILENO, "% ", 2);
 
     //Read in user arguments
-    if (Read(STDIN_FILENO, buf, MAX))
+    if (Read(buf, MAX))
       continue;
 
     buf[strlen(buf)-1] = 0; // chomp '\n'
@@ -345,21 +338,10 @@ main(void)
     }
     else {
       i = Parse(argv,buf, " ");
-      /* TODO REMOVE THIS WHEN BUILTINS DONE
-      // Exit from commandline
-      if (strncmp(argv[0], "exit", 4) == 0) {
-        free_array(argv, i);
-        exit(EXIT_SUCCESS);
-      }
-      */
-//      pid = Fork();
       pid = -1;
       exec_checks(argv, pid, i);
       free_array(argv, i);
     }
-
-
-
   } while(1);
   exit(EXIT_SUCCESS);
 }
