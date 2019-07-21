@@ -308,6 +308,7 @@ pipes(char **argv, char **cmds, char *buf)
   }
   for(k = 0; k < cmd_cnt; ++k) 
     Waitpid(-1, 0, 0);
+  free_array(cmds, cmd_cnt);
 }
 
 int
