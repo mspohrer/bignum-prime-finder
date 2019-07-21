@@ -280,19 +280,24 @@ pipes(char **argv, char **cmds, char *buf)
           close(fd[j][0]);
           close(fd[j][1]);
         }
+        // Parse and Exec
         j = Parse(argv, cmds[k], " ");
         exec_checks(argv, pid, j);
+        // last command entered in the chain of pipes
       } else {
+        // switches the stdin of the las
         dup2(fd[k-1][0], STDIN_FILENO);
         for(j=0; j<cmd_cnt-1; ++j){
           close(fd[j][0]);
           close(fd[j][1]);
         }
+        // Parse and Exec
         j = Parse(argv, cmds[k], " ");
         exec_checks(argv, pid, j);
       }
     }
   }
+  // parent. close all fds
   for(j=0; j<cmd_cnt-1; ++j){
     close(fd[j][0]);
     close(fd[j][1]);
