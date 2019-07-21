@@ -304,6 +304,7 @@ pipes(char **argv, char **cmds, char *buf)
   }
   for(k = 0; k < cmd_cnt; ++k) 
     wait(NULL);
+  free_array(cmds, cmd_cnt);
 }
 
 int
