@@ -18,6 +18,7 @@
 #include <sys/types.h>
 #include <error.h>
 #include <limits.h>
+#include <sys/resource.h>
 
 #define ARGMAX 30   //max size of argument I am accepting
 int ACCT_ON = 0;
@@ -157,9 +158,12 @@ void
 Waitpid(pid_t pid, int status,int option)
 {
   if (ACCT_ON) {
-    struct rusage *rusage = NULL;
-    if ((pid = wait4(pid, &status, option, rusage)) < 0)
+    struct rusage *rus = malloc(sizeof(struct rusage));
+    if ((pid = wait4(pid, &status, option, rus)) < 0)
       write(STDERR_FILENO, strerror(errno), strlen(strerror(errno)));
+    else 
+      printf("Process %i User CPU time: %li sec %li usec\n", pid, rus->ru_utime.tv_sec, rus->ru_utime.tv_usec);
+    free(rus);
   }
   else {
     if ((pid = waitpid(pid, &status, option)) < 0)
@@ -303,7 +307,7 @@ pipes(char **argv, char **cmds, char *buf)
     close(fd[j][1]);
   }
   for(k = 0; k < cmd_cnt; ++k) 
-    wait(NULL);
+    Waitpid(-1, 0, 0);
   free_array(cmds, cmd_cnt);
 }
 
