@@ -1,12 +1,12 @@
 CC=gcc
 CFLAGS= -Wall
-DFLAGS= -g -lgmp
-PROGS= prime-finder
+DFLAGS= -g
+PROGS= boss finder
 
 all: $(PROGS)
 
 %: %.c
-	$(CC) $(CFLAGS) $(DFLAGS) $< -o $@
+	$(CC) $(CFLAGS) $(DFLAGS) $< -o $@ -lgmp
 
 clean:
 	rm $(PROGS)
