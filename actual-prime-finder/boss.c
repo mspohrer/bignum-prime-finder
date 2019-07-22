@@ -99,6 +99,11 @@ main()
   // ui = unsigned long
   mpz_fdiv_q_ui(increment, number, CHILD_COUNT);
 
+  /*gmp_printf(" start: %Zd, num: %Zd\n", start, number);
+  //for debug child
+    call_child(start, number);*/
+
+
   // sets the start value to 1 + the previous child's stop
   // value
   for(i = 0; i < CHILD_COUNT; ++i)
@@ -116,32 +121,3 @@ main()
 
   exit(EXIT_SUCCESS);
 }
-  /*printf("increment = ");
-  mpz_out_str(stdout, DECIMAL, increment);
-  printf("\n");*/
-/*
-p. 30 https://gmplib.org/gmp-man-6.1.2.pdf
-
-mpz_init (<variable>) initialize before assigning GMP variables
-mpz_inits (<variable1>, <variable2>,...)
-
-mpz_set (mpz_t rop, const mpz_t op) set value of rop from op
-mpz_set_str (mpz_t rop, const char *str, int base) Set the value ofropfromstr, 
-      a null-terminated C string in basebase.  White space is allowedin the string, and is simply ignored
-
-mpz_clear (<variable>) free the memory when finished
-mpz_clears (<variable1>, <variable2>,...)
-
-
-mpz_t multi precision int (bigger than big int)
-mpz_mul (x,x,x) squares x and stores it in x
-mpz_add (<variable>, ...)
-mpz_sub (<variable>, ...)
-mpz_cdiv_r (mpz_t r, const mpz_t n, const mpz_t d) divide n by d, r is remainder
-
-mpz_t n;
-mpz_init (<variable);
-.
-.
-.
-mpz_clear (<variable>);*/

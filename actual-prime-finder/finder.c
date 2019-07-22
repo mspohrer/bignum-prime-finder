@@ -19,7 +19,7 @@ int
 is_prime(mpz_t num_to_check)
 {
   mpz_t dividend, up_limit, remainder;
-  mpz_init_set_ui(dividend, 2);
+  mpz_init_set_ui(dividend, 3);
   mpz_init_set_ui(up_limit, 1);
   mpz_init_set_ui(remainder, 1);
   
@@ -36,7 +36,6 @@ is_prime(mpz_t num_to_check)
     mpz_mul(up_limit, dividend, dividend);
   }
 
-  mpz_out_str(stdout, 10, dividend);
   return 1;
 }
     
@@ -46,7 +45,7 @@ int
 main(int argc, char **argv)
 {
   mpz_t start, stop, remainder, num_to_check;
-  unsigned long result;
+  int result, increment;
 
   // converts the char * passed from ./boss to mpz_t 
   // for start and stop
