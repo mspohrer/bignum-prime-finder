@@ -3,21 +3,7 @@
 //
 // This program takes in a very large number and finds the
 // prime numbers existing below that number
-#include <stdio.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <sys/wait.h>
-#include <errno.h>
-#include <string.h>
-#include <sys/types.h>
-#include <error.h>
-#include <limits.h>
-#include <gmp.h>
-
-// the number of numbers each child is responsible to check if prime
-#define CHILD_COUNT 5
-#define DECIMAL 10
-#define MAX_LINE_IN sysconf(_SC_LINE_MAX)
+#include "prime-finder.h"
 
 void
 Fgets(char *buf, int size, FILE *where_from)
@@ -58,40 +44,85 @@ get_num(mpz_t number)
   mpz_mul_2exp(number, number, exponent);
 }
 
+static void
+Pipe(int *fd)
+{
+  if(pipe(fd) < 0)
+  {
+    perror("Pipe()");
+    exit(EXIT_FAILURE);
+  }
+}
+
 void
 call_child(mpz_t start, mpz_t stop)
 {
   pid_t pid;
   char *beg = 0;
   char *end = 0;
+  int fd[2];
+
+  Pipe(fd);
 
   beg = mpz_get_str(beg, DECIMAL, start);
   end = mpz_get_str(end, DECIMAL, stop);
 
   if((pid = Fork()) == 0)
   {
+    dup2(fd[0], STDIN_FILENO);
+    close(fd[1]);
+printf("fork kid\n");
     if(execl("./finder", "./finder", beg, end, NULL) == -1)
     {
       perror("execl() in call_child()");
       exit(EXIT_FAILURE);
     }
   }
+printf("fork parent\n");
+  dprintf(fd[1], "Got it%d\n", fd[1]); 
+  fflush(NULL);
+  close(fd[0]);
+  close(fd[1]);
 }
 
 
 int
-main()
+main(int argc, char *argv[])
 {
   mpz_t number, start, stop, increment;
-  int i;
+  int i,opt, options[NUM_OPTS];
 
-  get_num(number);
+  for(i = 0; i < NUM_OPTS; ++i)
+    options[i] = 0;
+
+  while((opt = getopt (argc,argv, "tc:")) != -1)
+    switch (opt) 
+    {
+      case 't':
+        // to run with time checks
+        options[0] = 1;
+        CHILD_COUNT = 1;
+        break;
+      case 'c':
+        CHILD_COUNT = atoi(optarg);
+        options[1] = 1;
+        break;
+      default:
+        printf("Usage:\n ./boss [OPTIONS]\n"
+            "-t run with a time check to test speeds \n"
+            "-c [INTEGER] select number of children to use\n");
+        exit(EXIT_FAILURE);
+    }
+
   
+  get_num(number);
+
+printf("fork parent\n");
   // init_set_ui initializes and sets the variable with the 
   // unsigned long passed to it
-  mpz_init_set_ui(start, 0);
-  mpz_init_set_ui(increment, 0);
-  mpz_init_set_ui(stop, 0);
+  mpz_init_set_ui(start, 1);
+  mpz_init_set_ui(increment, 1);
+  mpz_init_set_ui(stop, 1);
 
   // sets the amount to increment to pass each child
   // fdiv = floor of the div (instead of ceiling and whatnot)
@@ -99,11 +130,7 @@ main()
   // ui = unsigned long
   mpz_fdiv_q_ui(increment, number, CHILD_COUNT);
 
-  /*gmp_printf(" start: %Zd, num: %Zd\n", start, number);
-  //for debug child
-    call_child(start, number);*/
-
-
+        
   // sets the start value to 1 + the previous child's stop
   // value
   for(i = 0; i < CHILD_COUNT; ++i)
@@ -115,6 +142,7 @@ main()
     mpz_add(stop, start, increment);
     call_child(start, stop);
   }
+        
 
   for(i = 0; i < CHILD_COUNT; ++i)
     wait(NULL);
