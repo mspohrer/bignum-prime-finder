@@ -1,6 +1,6 @@
 CC=gcc
 CFLAGS= -Wall
-DFLAGS= -g
+DFLAGS= -g -pthread
 PROGS= boss finder
 
 all: $(PROGS)
