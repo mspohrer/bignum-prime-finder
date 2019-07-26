@@ -37,8 +37,6 @@ is_prime(mpz_t num_to_check)
 
   if(rem != 0)
     gmp_printf("%Zd is prime\n", num_to_check);
-
-  if(PTHREAD_COUNT > 0) pthread_exit(NULL);
 }
 
 void
@@ -57,6 +55,7 @@ is_prime_wrapper(void *num)
   mpz_t num_to_check;
   mpz_set_str(num_to_check, num, DECIMAL);
   is_prime(num);
+  mpz_clear(num_to_check);
   pthread_exit(NULL);
 }
 
@@ -105,5 +104,5 @@ main(int argc, char **argv)
   else
     threads(num_to_check, stop);
         
-
+  mpz_clears(start, stop, remainder, num_to_check);
 }

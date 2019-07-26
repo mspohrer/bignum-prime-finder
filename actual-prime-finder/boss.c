@@ -54,7 +54,9 @@ get_num(mpz_t number)
   char buf[MAX_LINE_IN];
   int exponent;
 
-  printf("Enter the number 'x' for 2^x where 2^x will be the max number"
+  printf("This is just for now to experiment with huge numbers."
+      "I got tired of entering 30 digit numbers by hand. Enter the"
+      "number 'x' for 2^x where 2^x will be the max number"
       "I will check if prime: ");
 
   Fgets(buf, MAX_LINE_IN, stdin);
@@ -100,6 +102,7 @@ finder(mpz_t begin, mpz_t end)
     no_threads(num_to_check, stop);
   else
     threads(num_to_check, stop);
+  mpz_clears(start, stop, remainder, num_to_check);
 }
 
 // calls the child process.
@@ -184,11 +187,22 @@ main(int argc, char *argv[])
       wait(NULL);
   }
 
+  mpz_clears(number, start, stop, increment);
   exit(EXIT_SUCCESS);
 }
 
+void *
+is_prime_wrapper(void *num)
+{
+  mpz_t num_to_check;
+  mpz_set_str(num_to_check, num, DECIMAL);
+  is_prime(num);
+  mpz_clear(num_to_check);
+  pthread_exit(NULL);
+}
+
 void 
-*is_prime(void *num_to_check)
+is_prime(mpz_t num_to_check)
 {
   int result = 0;
   int rem = 0;
@@ -218,8 +232,8 @@ void
   if(result == 0 && rem != 0)
     gmp_printf("%Zd is prime\n", num_to_check);
 
+  mpz_clears(dividend, up_limit, remainder);
   if(PTHREAD_COUNT > 0) pthread_exit(NULL);
-  return NULL;
 }
 
 void
@@ -227,7 +241,7 @@ no_threads(mpz_t num_to_check, mpz_t stop)
 {
   while(mpz_cmp(num_to_check,stop) <= 0)
   {
-    is_prime(&num_to_check);
+    is_prime(num_to_check);
     mpz_add_ui(num_to_check, num_to_check, 2);
   }
 }
@@ -244,7 +258,7 @@ threads(mpz_t num_to_check, mpz_t stop)
   {
 
     for(j = i; j < PTHREAD_COUNT; ++j){
-      pthread_create(&ptid[k], NULL, &is_prime, &num_to_check);
+      pthread_create(&ptid[k], NULL, &is_prime_wrapper, &num_to_check);
       ++i;
     }
 
