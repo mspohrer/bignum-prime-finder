@@ -102,7 +102,7 @@ finder(mpz_t begin, mpz_t end)
     no_threads(num_to_check, stop);
   else
     threads(num_to_check, stop);
-  mpz_clears(start, stop, remainder, num_to_check);
+  mpz_clears(start, stop, remainder, num_to_check, NULL);
 }
 
 // calls the child process.
@@ -187,7 +187,7 @@ main(int argc, char *argv[])
       wait(NULL);
   }
 
-  mpz_clears(number, start, stop, increment);
+  mpz_clears(number, start, stop, increment, NULL);
   exit(EXIT_SUCCESS);
 }
 
@@ -232,7 +232,7 @@ is_prime(mpz_t num_to_check)
   if(result == 0 && rem != 0)
     gmp_printf("%Zd is prime\n", num_to_check);
 
-  mpz_clears(dividend, up_limit, remainder);
+  mpz_clears(dividend, up_limit, remainder, NULL);
   if(PTHREAD_COUNT > 0) pthread_exit(NULL);
 }
 

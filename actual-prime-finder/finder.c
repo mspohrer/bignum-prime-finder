@@ -104,5 +104,5 @@ main(int argc, char **argv)
   else
     threads(num_to_check, stop);
         
-  mpz_clears(start, stop, remainder, num_to_check);
+  mpz_clears(start, stop, remainder, num_to_check, NULL);
 }
