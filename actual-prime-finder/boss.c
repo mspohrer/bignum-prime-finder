@@ -192,7 +192,6 @@ is_prime_wrapper(void *num)
 {
   mpz_t num_to_check;
   mpz_init_set_str(num_to_check, num, DECIMAL);
-    gmp_printf("%Zd is prime\n", num_to_check);
   is_prime(num_to_check);
   mpz_clear(num_to_check);
   pthread_exit(NULL);
@@ -272,7 +271,7 @@ is_prime(mpz_t num_to_check)
   }
 
   if(rem != 0)
-    //gmp_printf("%Zd is prime\n", num_to_check);
+    gmp_printf("%Zd is prime\n", num_to_check);
 
   mpz_clears(dividend, up_limit, remainder, NULL);
   if(PTHREAD_COUNT > 0) pthread_exit(NULL);
