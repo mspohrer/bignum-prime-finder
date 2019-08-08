@@ -54,9 +54,9 @@ get_num(mpz_t number)
   char buf[MAX_LINE_IN];
   int exponent;
 
-  printf("This is just for now to experiment with huge numbers."
-      "I got tired of entering 30 digit numbers by hand. Enter the"
-      "number 'x' for 2^x where 2^x will be the max number"
+  printf("This is just for now to experiment with huge numbers.\n"
+      "I got tired of entering 30 digit numbers by hand. \nEnter the"
+      "number 'x' for 2^x where 2^x will be the max number\n"
       "I will check if prime: ");
 
   Fgets(buf, MAX_LINE_IN, stdin);
@@ -68,16 +68,6 @@ get_num(mpz_t number)
   mpz_init_set_ui(number, 1);
   mpz_mul_2exp(number, number, exponent);
 }
-
-/*static void
-Pipe(int *fd)
-{
-  if(pipe(fd) < 0)
-  {
-    perror("Pipe()");
-    exit(EXIT_FAILURE);
-  }
-}*/
 
 // I kept this exactly the same as with having children 
 // to kee the overheads resulting from the algorithm as
@@ -102,7 +92,66 @@ finder(mpz_t begin, mpz_t end)
     no_threads(num_to_check, stop);
   else
     threads(num_to_check, stop);
-  mpz_clears(start, stop, remainder, num_to_check);
+  mpz_clears(start, stop, remainder, num_to_check, NULL);
+}
+
+void
+Pipe(int *fd)
+{
+  if(pipe(fd) < 0){
+    perror("Pipe()");
+    exit(EXIT_FAILURE);
+  }
+}
+
+void
+pipes(mpz_t start, mpz_t stop, mpz_t increment)
+{
+  int i, j, child_count, fds[CHILD_COUNT][2];
+  pid_t pid, pids[CHILD_COUNT];
+  char *beg = 0;
+  char *end = 0;
+
+  child_count = CHILD_COUNT;
+  if (child_count == 0) {
+    return;
+  }
+
+  for(i = 0; i < child_count; i++) {
+    Pipe(fds[i]);
+    if ((pid = Fork()) == 0) {
+      printf("child: Something's up...\n");
+      dup2(fds[i][0], STDIN_FILENO);
+      //dup2(fds[i][1], STDOUT_FILENO);
+      for (j = 0;  j < CHILD_COUNT; j++) {
+        close(fds[j][0]);
+        close(fds[j][1]);
+      }
+      if (execl("./finder", "./finder", NULL) < 0)
+      {
+        perror("execl() in call_child()");
+        exit(EXIT_FAILURE);
+      }
+    } else {
+      pids[i] = pid;
+      printf("parent: Something's up...\n");
+    }
+  }
+
+  for(i = 0; i < CHILD_COUNT; i++) {
+    beg = mpz_get_str(beg, DECIMAL, start);
+    end = mpz_get_str(end, DECIMAL, stop);
+    write(fds[i][0], beg, strlen(beg) + 1);
+    //write(fds[i], "\n", 2A;
+    write(fds[i][0], end, strlen(end) + 1);
+    mpz_add_ui(start, stop, 1);
+    mpz_add(stop, start, increment);
+  }
+
+  for(i = 0; i < CHILD_COUNT; i++) {
+    wait(NULL);
+  }
+  
 }
 
 // calls the child process.
@@ -175,6 +224,7 @@ main(int argc, char *argv[])
     finder(start, stop);
   else 
   {
+    /*
     for(i = 0; i < CHILD_COUNT; ++i)
     {
       // mpz_add adds the last two variables and stores it in 
@@ -185,9 +235,11 @@ main(int argc, char *argv[])
     }
     for(i = 0; i < CHILD_COUNT; ++i)
       wait(NULL);
+      */
+    pipes(start, stop, increment);
   }
 
-  mpz_clears(number, start, stop, increment);
+  mpz_clears(number, start, stop, increment, NULL);
   exit(EXIT_SUCCESS);
 }
 
@@ -232,7 +284,7 @@ is_prime(mpz_t num_to_check)
   if(result == 0 && rem != 0)
     gmp_printf("%Zd is prime\n", num_to_check);
 
-  mpz_clears(dividend, up_limit, remainder);
+  mpz_clears(dividend, up_limit, remainder, NULL);
   if(PTHREAD_COUNT > 0) pthread_exit(NULL);
 }
 

@@ -87,11 +87,38 @@ int
 main(int argc, char **argv)
 {
   mpz_t start, stop, remainder, num_to_check;
+  char buf[1024];
+  int c, i;
 
+  printf("In child!\n");
   // converts the char * passed from ./boss to mpz_t 
   // for start and stop
-  mpz_init_set_str(start, argv[1], 10);
-  mpz_init_set_str(stop, argv[2], 10);
+  if (argc == 3) {
+    mpz_init_set_str(start, argv[1], 10);
+    printf("value from argv[1]: %s\n", argv[1]);
+    mpz_init_set_str(stop, argv[2], 10);
+    printf("value from argv[2]: %s\n", argv[2]);
+  }
+  else {
+    i = 0;
+    while((c = getc(STDIN_FILENO)) != 0) {
+      buf[i] = c;
+      ++i;
+    }
+    buf[i] = 0;
+    printf("start value from pipe: %s\n", buf);
+    mpz_init_set_str(start, buf, 10);
+    i = 0;
+    while((c = getc(STDIN_FILENO)) != 0) {
+      buf[i] = c;
+      ++i;
+    }
+    buf[i] = 0;
+    //read(STDIN_FILENO, &buf, sizeof(buf)-1);
+    //buf[strlen(buf)] = 0;
+    printf("end value from pipe: %s\n", buf);
+    mpz_init_set_str(stop, buf, 10);
+  }
   mpz_init_set(num_to_check, start);
   mpz_init_set(remainder, start);
 
@@ -104,5 +131,27 @@ main(int argc, char **argv)
   else
     threads(num_to_check, stop);
         
-  mpz_clears(start, stop, remainder, num_to_check);
+  /*
+  if (*start)
+  {
+    printf("Clearing start\n");
+    mpz_clear(start);
+  }
+  if (*stop)
+  {
+    printf("Clearing stop\n");
+    mpz_clear(stop);
+  }
+  if (*remainder)
+  {
+    printf("Clearing remainder\n");
+    mpz_clear(remainder);
+  }
+  if (*num_to_check)
+  {
+    printf("Clearing num_to_check\n");
+    mpz_clear(num_to_check);
+  }
+  */
+  mpz_clears(start, stop, remainder, num_to_check, NULL);
 }
