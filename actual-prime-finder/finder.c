@@ -90,7 +90,6 @@ main(int argc, char **argv)
   char buf[1024];
   int c, i;
 
-  printf("In child!\n");
   // converts the char * passed from ./boss to mpz_t 
   // for start and stop
   if (argc == 3) {
@@ -100,23 +99,11 @@ main(int argc, char **argv)
     printf("value from argv[2]: %s\n", argv[2]);
   }
   else {
-    i = 0;
-    while((c = getc(STDIN_FILENO)) != 0) {
-      buf[i] = c;
-      ++i;
-    }
-    buf[i] = 0;
-    printf("start value from pipe: %s\n", buf);
+    read(STDIN_FILENO, &buf, sizeof(buf)-1);
+    buf[strlen(buf)] = 0;
     mpz_init_set_str(start, buf, 10);
-    i = 0;
-    while((c = getc(STDIN_FILENO)) != 0) {
-      buf[i] = c;
-      ++i;
-    }
-    buf[i] = 0;
-    //read(STDIN_FILENO, &buf, sizeof(buf)-1);
-    //buf[strlen(buf)] = 0;
-    printf("end value from pipe: %s\n", buf);
+    read(STDIN_FILENO, &buf, sizeof(buf)-1);
+    buf[strlen(buf)] = 0;
     mpz_init_set_str(stop, buf, 10);
   }
   mpz_init_set(num_to_check, start);

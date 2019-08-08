@@ -120,7 +120,6 @@ pipes(mpz_t start, mpz_t stop, mpz_t increment)
   for(i = 0; i < child_count; i++) {
     Pipe(fds[i]);
     if ((pid = Fork()) == 0) {
-      printf("child: Something's up...\n");
       dup2(fds[i][0], STDIN_FILENO);
       //dup2(fds[i][1], STDOUT_FILENO);
       for (j = 0;  j < CHILD_COUNT; j++) {
@@ -134,22 +133,26 @@ pipes(mpz_t start, mpz_t stop, mpz_t increment)
       }
     } else {
       pids[i] = pid;
-      printf("parent: Something's up...\n");
+      close(fds[i][0]);
     }
   }
 
   for(i = 0; i < CHILD_COUNT; i++) {
+    //TODO NON-BLOCKING I/O
     beg = mpz_get_str(beg, DECIMAL, start);
     end = mpz_get_str(end, DECIMAL, stop);
-    write(fds[i][0], beg, strlen(beg) + 1);
-    //write(fds[i], "\n", 2A;
-    write(fds[i][0], end, strlen(end) + 1);
+    write(fds[i][1], beg, strlen(beg) + 1);
+    write(fds[i][1], "\n", 1);
+    sleep(2);
+    write(fds[i][1], end, strlen(end) + 1);
+    write(fds[i][1], "\n", 1);
     mpz_add_ui(start, stop, 1);
     mpz_add(stop, start, increment);
   }
 
   for(i = 0; i < CHILD_COUNT; i++) {
-    wait(NULL);
+    pid = wait(NULL);
+    printf("%d exited\n", pid);
   }
   
 }
