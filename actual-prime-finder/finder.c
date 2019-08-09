@@ -94,16 +94,19 @@ main(int argc, char **argv)
   // for start and stop
   if (argc == 3) {
     mpz_init_set_str(start, argv[1], 10);
-    printf("value from argv[1]: %s\n", argv[1]);
+    //printf("value from argv[1]: %s\n", argv[1]);
     mpz_init_set_str(stop, argv[2], 10);
-    printf("value from argv[2]: %s\n", argv[2]);
+    //printf("value from argv[2]: %s\n", argv[2]);
   }
   else {
+    //printf("reading child\n");
     read(STDIN_FILENO, &buf, sizeof(buf)-1);
     buf[strlen(buf)] = 0;
+    //printf("start:%s\n", buf);
     mpz_init_set_str(start, buf, 10);
     read(STDIN_FILENO, &buf, sizeof(buf)-1);
     buf[strlen(buf)] = 0;
+    //printf("end:%s\n", buf);
     mpz_init_set_str(stop, buf, 10);
   }
   mpz_init_set(num_to_check, start);

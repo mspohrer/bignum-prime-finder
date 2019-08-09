@@ -107,19 +107,19 @@ Pipe(int *fd)
 void
 pipes(mpz_t start, mpz_t stop, mpz_t increment)
 {
-  int i, j, child_count, fds[CHILD_COUNT][2];
+  int i, j, fds[CHILD_COUNT][2];
   pid_t pid, pids[CHILD_COUNT];
   char *beg = 0;
   char *end = 0;
 
-  child_count = CHILD_COUNT;
-  if (child_count == 0) {
+  if (CHILD_COUNT == 0) {
     return;
   }
 
-  for(i = 0; i < child_count; i++) {
+  for(i = 0; i < CHILD_COUNT; i++) {
     Pipe(fds[i]);
     if ((pid = Fork()) == 0) {
+  //printf("%d\n", CHILD_COUNT);
       dup2(fds[i][0], STDIN_FILENO);
       //dup2(fds[i][1], STDOUT_FILENO);
       for (j = 0;  j < CHILD_COUNT; j++) {
@@ -132,24 +132,34 @@ pipes(mpz_t start, mpz_t stop, mpz_t increment)
         exit(EXIT_FAILURE);
       }
     } else {
+      //printf("Parent!\n");
       pids[i] = pid;
       close(fds[i][0]);
     }
   }
-
+  //printf("on to passing the vars\n");
+  //printf("Start: %s\n", start);
+  //printf("Stop: %s\n", stop);
+  //printf("Increment: %s\n", increment);
   for(i = 0; i < CHILD_COUNT; i++) {
     //TODO NON-BLOCKING I/O
     beg = mpz_get_str(beg, DECIMAL, start);
     end = mpz_get_str(end, DECIMAL, stop);
     write(fds[i][1], beg, strlen(beg) + 1);
     write(fds[i][1], "\n", 1);
+    //write(STDOUT_FILENO, beg, strlen(beg) + 1);
+    //write(STDOUT_FILENO, "\n", 1);
     sleep(2);
     write(fds[i][1], end, strlen(end) + 1);
     write(fds[i][1], "\n", 1);
+    //write(STDOUT_FILENO, end, strlen(end) + 1);
+    //write(STDOUT_FILENO, "\n", 1);
     mpz_add_ui(start, stop, 1);
     mpz_add(stop, start, increment);
+    //printf("%d\n", CHILD_COUNT);
   }
 
+  //printf("%d\n", CHILD_COUNT);
   for(i = 0; i < CHILD_COUNT; i++) {
     pid = wait(NULL);
     printf("%d exited\n", pid);
@@ -239,7 +249,12 @@ main(int argc, char *argv[])
     for(i = 0; i < CHILD_COUNT; ++i)
       wait(NULL);
       */
+      char beg[1024], end[1024];
+    //printf("Start: %s\n", mpz_get_str(beg, DECIMAL, start));
+  printf("Stop: %s\n", mpz_get_str(end, DECIMAL, stop));
+  //printf("Increment: %s\n", increment);
     pipes(start, stop, increment);
+    //printf("%d\n", CHILD_COUNT);
   }
 
   mpz_clears(number, start, stop, increment, NULL);
