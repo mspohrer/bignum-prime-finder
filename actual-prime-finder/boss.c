@@ -85,7 +85,7 @@ get_num(mpz_t min_exp, mpz_t max_exp)
   // entered by the user
   mpz_init_set_ui(max_exp, 1);
   mpz_mul_2exp(max_exp, max_exp, exponent);
-  gmp_printf("%Zd is prime\n", min_exp);
+  //gmp_printf("%Zd is prime\n", min_exp);
   return exponent;
 }
 
