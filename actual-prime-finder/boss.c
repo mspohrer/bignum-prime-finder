@@ -48,7 +48,7 @@ init_numbers(mpz_t increment, mpz_t start, mpz_t stop, mpz_t number)
   }
 }
 
-void
+int
 get_num(mpz_t number)
 {
   char buf[MAX_LINE_IN];
@@ -67,6 +67,7 @@ get_num(mpz_t number)
   // entered by the user
   mpz_init_set_ui(number, 1);
   mpz_mul_2exp(number, number, exponent);
+  return exponent;
 }
 
 // I kept this exactly the same as with having children 
@@ -112,6 +113,10 @@ pipes(mpz_t start, mpz_t stop, mpz_t increment)
   char *beg = 0;
   char *end = 0;
 
+  for (i = 0; i < CHILD_COUNT; i++) {
+    fds[i][0] = 0;
+    fds[i][1] = 0;
+  }
   if (CHILD_COUNT == 0) {
     return;
   }
@@ -123,8 +128,10 @@ pipes(mpz_t start, mpz_t stop, mpz_t increment)
       dup2(fds[i][0], STDIN_FILENO);
       //dup2(fds[i][1], STDOUT_FILENO);
       for (j = 0;  j < CHILD_COUNT; j++) {
-        close(fds[j][0]);
-        close(fds[j][1]);
+        if (fds[j][0] != 0) {
+          close(fds[j][0]);
+          close(fds[j][1]);
+        }
       }
       if (execl("./finder", "./finder", NULL) < 0)
       {
@@ -137,10 +144,6 @@ pipes(mpz_t start, mpz_t stop, mpz_t increment)
       close(fds[i][0]);
     }
   }
-  //printf("on to passing the vars\n");
-  //printf("Start: %s\n", start);
-  //printf("Stop: %s\n", stop);
-  //printf("Increment: %s\n", increment);
   for(i = 0; i < CHILD_COUNT; i++) {
     //TODO NON-BLOCKING I/O
     beg = mpz_get_str(beg, DECIMAL, start);
@@ -158,6 +161,11 @@ pipes(mpz_t start, mpz_t stop, mpz_t increment)
     mpz_add(stop, start, increment);
     //printf("%d\n", CHILD_COUNT);
   }
+  if (beg != 0)
+    free(beg);
+
+  if (end != 0)
+    free(end);
 
   //printf("%d\n", CHILD_COUNT);
   for(i = 0; i < CHILD_COUNT; i++) {
@@ -192,7 +200,7 @@ int
 main(int argc, char *argv[])
 {
   mpz_t number, start, stop, increment;
-  int i,opt, options[NUM_OPTS];
+  int i,opt, options[NUM_OPTS], power;
 
   for(i = 0; i < NUM_OPTS; ++i)
     options[i] = 0;
@@ -212,7 +220,8 @@ main(int argc, char *argv[])
       case 't':
         // to run with time checks
         options[0] = 1;
-        CHILD_COUNT = 1;
+        if (CHILD_COUNT == 0)
+          CHILD_COUNT = 1;
         break;
       case 'c':
         CHILD_COUNT = atoi(optarg);
@@ -222,12 +231,16 @@ main(int argc, char *argv[])
         PTHREAD_COUNT = atoi(optarg);
         options[2] = 1;
         break;
+      case 'd':
+        IODAEMON = 1;
+        options[3] = 1;
+        break;
       default:
         exit(EXIT_FAILURE);
     }
 
   
-  get_num(number);
+  power = get_num(number);
 
   init_numbers(increment, start, stop, number);
         
@@ -235,9 +248,8 @@ main(int argc, char *argv[])
   // otherwise call the number of children asked for.
   if(CHILD_COUNT == 0)
     finder(start, stop);
-  else 
+  else if (power < 435409)  //max exponent for childcount 1
   {
-    /*
     for(i = 0; i < CHILD_COUNT; ++i)
     {
       // mpz_add adds the last two variables and stores it in 
@@ -248,13 +260,9 @@ main(int argc, char *argv[])
     }
     for(i = 0; i < CHILD_COUNT; ++i)
       wait(NULL);
-      */
-      char beg[1024], end[1024];
-    //printf("Start: %s\n", mpz_get_str(beg, DECIMAL, start));
-  printf("Stop: %s\n", mpz_get_str(end, DECIMAL, stop));
-  //printf("Increment: %s\n", increment);
+  } else //if number too big to pass directly, pipe to children
+  {
     pipes(start, stop, increment);
-    //printf("%d\n", CHILD_COUNT);
   }
 
   mpz_clears(number, start, stop, increment, NULL);

@@ -120,28 +120,5 @@ main(int argc, char **argv)
     no_threads(num_to_check, stop);
   else
     threads(num_to_check, stop);
-        
-  /*
-  if (*start)
-  {
-    printf("Clearing start\n");
-    mpz_clear(start);
-  }
-  if (*stop)
-  {
-    printf("Clearing stop\n");
-    mpz_clear(stop);
-  }
-  if (*remainder)
-  {
-    printf("Clearing remainder\n");
-    mpz_clear(remainder);
-  }
-  if (*num_to_check)
-  {
-    printf("Clearing num_to_check\n");
-    mpz_clear(num_to_check);
-  }
-  */
   mpz_clears(start, stop, remainder, num_to_check, NULL);
 }
