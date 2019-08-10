@@ -38,7 +38,7 @@ init_numbers(mpz_t increment, mpz_t start, mpz_t stop, mpz_t number)
   mpz_init_set_ui(increment, 1);
   if(CHILD_COUNT > 1) 
     mpz_fdiv_q_ui(increment, number, CHILD_COUNT);
-  mpz_init_set_ui(start, 1);
+  //mpz_init_set_ui(start, 1);
   if(CHILD_COUNT < 2) 
     mpz_init_set(stop, number);
   else 
@@ -49,24 +49,43 @@ init_numbers(mpz_t increment, mpz_t start, mpz_t stop, mpz_t number)
 }
 
 int
-get_num(mpz_t number)
+get_num(mpz_t min_exp, mpz_t max_exp)
 {
   char buf[MAX_LINE_IN];
-  int exponent;
+  int start, exponent;
+  
+  printf("Enter the number 'x' for 2^x where 2^x will be the minimum\n"
+         "value checked: ");
+  Fgets(buf, MAX_LINE_IN, stdin);
+  start = atoi(buf);
+  // initializes and sets the <number>
+  // sets <number> equal to 2^x where x is equal to the number
+  // entered by the user
+  mpz_init_set_ui(min_exp, 1);
+  mpz_mul_2exp(min_exp, min_exp, start);
 
+/*
   printf("This is just for now to experiment with huge numbers.\n"
       "I got tired of entering 30 digit numbers by hand. \nEnter the"
       "number 'x' for 2^x where 2^x will be the max number\n"
       "I will check if prime: ");
-
+*/
+  printf("Enter the number 'x' for 2^x where 2^x will be the maximum\n"
+         "value checked: ");
   Fgets(buf, MAX_LINE_IN, stdin);
   exponent = atoi(buf);
+
+  if (start > exponent) {
+    perror("get_num()");
+    exit(EXIT_FAILURE);
+  }
   
   // initializes and sets the <number>
   // sets <number> equal to 2^x where x is equal to the number
   // entered by the user
-  mpz_init_set_ui(number, 1);
-  mpz_mul_2exp(number, number, exponent);
+  mpz_init_set_ui(max_exp, 1);
+  mpz_mul_2exp(max_exp, max_exp, exponent);
+  gmp_printf("%Zd is prime\n", min_exp);
   return exponent;
 }
 
@@ -170,7 +189,7 @@ pipes(mpz_t start, mpz_t stop, mpz_t increment)
   //printf("%d\n", CHILD_COUNT);
   for(i = 0; i < CHILD_COUNT; i++) {
     pid = wait(NULL);
-    printf("%d exited\n", pid);
+    //printf("%d exited\n", pid);
   }
   
 }
@@ -199,7 +218,7 @@ call_child(mpz_t start, mpz_t stop)
 int
 main(int argc, char *argv[])
 {
-  mpz_t number, start, stop, increment;
+  mpz_t max_exp, start, stop, increment;
   int i,opt, options[NUM_OPTS], power;
 
   for(i = 0; i < NUM_OPTS; ++i)
@@ -240,9 +259,9 @@ main(int argc, char *argv[])
     }
 
   
-  power = get_num(number);
+  power = get_num(start, max_exp);
 
-  init_numbers(increment, start, stop, number);
+  init_numbers(increment, start, stop, max_exp);
         
   // if the user want no children, the finder is called here
   // otherwise call the number of children asked for.
@@ -265,7 +284,7 @@ main(int argc, char *argv[])
     pipes(start, stop, increment);
   }
 
-  mpz_clears(number, start, stop, increment, NULL);
+  mpz_clears(max_exp, start, stop, increment, NULL);
   exit(EXIT_SUCCESS);
 }
 
