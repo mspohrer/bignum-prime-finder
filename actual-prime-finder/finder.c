@@ -88,11 +88,29 @@ int
 main(int argc, char **argv)
 {
   mpz_t start, stop, remainder, num_to_check;
+  char buf[1024];
+  int c, i;
 
   // converts the char * passed from ./boss to mpz_t 
   // for start and stop
-  mpz_init_set_str(start, argv[1], DECIMAL);
-  mpz_init_set_str(stop, argv[2], DECIMAL);
+
+  if (argc == 3) {
+    mpz_init_set_str(start, argv[1], 10);
+    //printf("value from argv[1]: %s\n", argv[1]);
+    mpz_init_set_str(stop, argv[2], 10);
+    //printf("value from argv[2]: %s\n", argv[2]);
+  }
+  else {
+    //printf("reading child\n");
+    read(STDIN_FILENO, &buf, sizeof(buf)-1);
+    buf[strlen(buf)] = 0;
+    //printf("start:%s\n", buf);
+    mpz_init_set_str(start, buf, 10);
+    read(STDIN_FILENO, &buf, sizeof(buf)-1);
+    buf[strlen(buf)] = 0;
+    //printf("end:%s\n", buf);
+    mpz_init_set_str(stop, buf, 10);
+  }
   mpz_init_set(num_to_check, start);
   mpz_init(remainder);
   mpz_cdiv_r_ui(remainder, num_to_check, 2);
@@ -105,6 +123,6 @@ main(int argc, char **argv)
     no_threads(num_to_check, stop);
   else
     threads(num_to_check, stop);
-        
+
   mpz_clears(start, stop, remainder, num_to_check, NULL);
 }
