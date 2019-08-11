@@ -99,10 +99,10 @@ finder(mpz_t begin, mpz_t end)
 void
 Polling(int fds[CHILD_COUNT][2])
 {
-  int i, j, poll_fd, file_out, ready_count;
+  int i, j, poll_fd, file_out, ready_count, ended = 0;
   mode_t mode;
   char buf[MAX_LINE_IN];
-  struct epoll_event evs[CHILD_COUNT], events[EPOLL_MAX];
+  struct epoll_event ev, events[EPOLL_MAX];
 
   mode = S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH;
   file_out = open("./prime-log.log", O_WRONLY | O_CREAT | O_TRUNC, mode);
@@ -112,9 +112,9 @@ Polling(int fds[CHILD_COUNT][2])
     //write(STDOUT_FILENO, &fds[i][0], sizeof(int));
     //printf("%i\n", fds[i][0]);
     //printf("%i\n", poll_fd);
-    evs[i].events = EPOLLIN;
-    evs[i].data.fd = fds[i][0];
-    if (epoll_ctl(poll_fd, EPOLL_CTL_ADD, fds[i][0], &evs[i]) == -1) {
+    ev.events = EPOLLIN;
+    ev.data.fd = fds[i][0];
+    if (epoll_ctl(poll_fd, EPOLL_CTL_ADD, fds[i][0], &ev) == -1) {
       perror("epoll_ctl()");
       exit(EXIT_FAILURE);
     }
@@ -130,8 +130,16 @@ Polling(int fds[CHILD_COUNT][2])
       for (j = 0; j < ready_count; j++) {
         //printf("%i\n", events[j].data.fd);
         read(events[j].data.fd, buf, MAX_LINE_IN);
-        //write(STDOUT_FILENO, buf, strlen(buf) + 1);
-        write(file_out, buf, strlen(buf) + 1);
+        if (strncmp(buf, "-1", 2) == 0) {
+          //ev.data = (int) events[j].data.fd;
+          //epoll_ctl(poll_fd, EPOLL_CTL_DEL, events[j].data.fd, &ev);
+          ended += 1;
+        } else {
+          //write(STDOUT_FILENO, buf, strlen(buf) + 1);
+          write(file_out, buf, strlen(buf) + 1);
+        }
+        if (ended == CHILD_COUNT)
+          exit(EXIT_SUCCESS);
       }
     }
   }
