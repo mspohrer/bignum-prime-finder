@@ -89,7 +89,6 @@ main(int argc, char **argv)
 {
   mpz_t start, stop, remainder, num_to_check;
   char buf[1024];
-  int c, i;
 
   // converts the char * passed from ./boss to mpz_t 
   // for start and stop

@@ -14,8 +14,9 @@
 int CHILD_COUNT = 0;
 int PTHREAD_COUNT = 0;
 int TEST = 0;
+int IODAEMON = 0;
 #define DECIMAL 10
-#define NUM_OPTS 3
+#define NUM_OPTS 4
 #define MAX_LINE_IN sysconf(_SC_LINE_MAX)
 
 void Pthread_create(pthread_t*,pthread_attr_t *, void *(*start_rtn)(void *), void *restrict arg);
