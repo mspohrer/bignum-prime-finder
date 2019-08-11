@@ -35,8 +35,8 @@ is_prime(mpz_t num_to_check)
     mpz_add_ui(dividend, dividend, 2);
   }
 
-  if(rem != 0)
-    gmp_printf("%Zd is prime\n", num_to_check);
+  //if(rem != 0)
+  //  gmp_printf("%Zd is prime\n", num_to_check);
 }
 
 void
@@ -54,6 +54,7 @@ is_prime_wrapper(void *num)
 {
   mpz_t num_to_check;
   mpz_set_str(num_to_check, num, DECIMAL);
+  gmp_printf("%Zd  wrapper\n", num);
   is_prime(num);
   mpz_clear(num_to_check);
   pthread_exit(NULL);
@@ -92,6 +93,7 @@ main(int argc, char **argv)
 
   // converts the char * passed from ./boss to mpz_t 
   // for start and stop
+
   if (argc == 3) {
     mpz_init_set_str(start, argv[1], 10);
     //printf("value from argv[1]: %s\n", argv[1]);
@@ -110,15 +112,17 @@ main(int argc, char **argv)
     mpz_init_set_str(stop, buf, 10);
   }
   mpz_init_set(num_to_check, start);
-  mpz_init_set(remainder, start);
-
+  mpz_init(remainder);
+  mpz_cdiv_r_ui(remainder, num_to_check, 2);
+  
   // makes start odd to ensure only odd numbers are checked
-  if(mpz_cdiv_r_ui(remainder, num_to_check, 2) == 0) 
+  if(mpz_cmp_ui(remainder, 0) == 0) 
     mpz_add_ui(num_to_check, num_to_check, 1);
 
   if(PTHREAD_COUNT == 0)
     no_threads(num_to_check, stop);
   else
     threads(num_to_check, stop);
+
   mpz_clears(start, stop, remainder, num_to_check, NULL);
 }
