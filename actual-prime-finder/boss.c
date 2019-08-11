@@ -96,12 +96,13 @@ finder(mpz_t begin, mpz_t end)
   mpz_clears(start, stop, remainder, num_to_check, NULL);
 }
 
-void
-Polling(int fds[CHILD_COUNT][2])
+int
+Polling(int fds[CHILD_COUNT + 1][2])
 {
-  int i, j, poll_fd, file_out, ready_count, ended = 0;
+  int i, j, poll_fd, file_out, ready_count;
+  int ended = 0, prime_count = 0, read_len;
   mode_t mode;
-  char buf[MAX_LINE_IN];
+  char buf[MAX_LINE_IN], buf2[MAX_LINE_IN];
   struct epoll_event ev, events[EPOLL_MAX];
 
   mode = S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH;
@@ -119,6 +120,7 @@ Polling(int fds[CHILD_COUNT][2])
       exit(EXIT_FAILURE);
     }
   }
+  write(fds[CHILD_COUNT][1], "ready", strlen("ready") + 1);
   for (;;) {
     for (i = 0; i < CHILD_COUNT; i++) {
       ready_count = epoll_wait(poll_fd, events, EPOLL_MAX, 0);
@@ -129,24 +131,34 @@ Polling(int fds[CHILD_COUNT][2])
       //Fgets(buf, MAX_LINE_IN, fdopen(ready_fd, "r"));
       for (j = 0; j < ready_count; j++) {
         //printf("%i\n", events[j].data.fd);
-        read(events[j].data.fd, buf, MAX_LINE_IN);
+        //memset(buf, 0, MAX_LINE_IN);
+        read_len = read(events[j].data.fd, buf, MAX_LINE_IN);
         if (strncmp(buf, "-1", 2) == 0) {
           //ev.data = (int) events[j].data.fd;
           //epoll_ctl(poll_fd, EPOLL_CTL_DEL, events[j].data.fd, &ev);
           ended += 1;
+          //write(file_out, "End of one input\n", 17);
         } else {
+          //prime_count += 1;
           //write(STDOUT_FILENO, buf, strlen(buf) + 1);
-          write(file_out, buf, strlen(buf) + 1);
+          write(file_out, buf, read_len);
+          //sprintf(buf2, "%ld", strlen(buf));
+          //write(file_out, buf2, strlen(buf2) + 1);
         }
-        if (ended == CHILD_COUNT)
-          exit(EXIT_SUCCESS);
+        if (ended == CHILD_COUNT + 1) {
+          //sprintf(buf, "%d", prime_count);
+          //buf = itoa(prime_count);
+          //write(file_out, buf, strlen(buf) + 1);
+          //write(file_out, "primes found!\n", strlen("primes found!\n") + 1);
+          return(ended);
+        }
       }
     }
   }
 }
 
 void
-io_daemonize(int fds[CHILD_COUNT][2])
+io_daemonize(int fds[CHILD_COUNT + 1][2])
 {
   int i, pid;
   int fd0, fd1, fd2; //, file_out;
@@ -186,7 +198,6 @@ io_daemonize(int fds[CHILD_COUNT][2])
       close(i);
     }
     */
-    /*
     close(STDIN_FILENO);
     fd0 = open("/dev/null", O_RDWR);
     fd1 = dup2(0, STDOUT_FILENO);
@@ -196,11 +207,14 @@ io_daemonize(int fds[CHILD_COUNT][2])
       //perror("io_daemonize(): fds");
       exit(EXIT_FAILURE);
     }
-    */
 
     //mode = S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH;
     //file_out = open("./prime-log.log", O_WRONLY | O_CREAT | O_TRUNC, mode);
-    Polling(fds);
+    if (Polling(fds) == CHILD_COUNT) {
+      exit(EXIT_SUCCESS);
+    } else {
+      exit(EXIT_FAILURE);
+    }
     //while (1) { pause(); }
   }
 }
@@ -217,25 +231,26 @@ Pipe(int *fd)
 void
 pipes(mpz_t start, mpz_t stop, mpz_t increment)
 {
-  int i, j, fds[CHILD_COUNT][2], ios[CHILD_COUNT][2];
+  int i, j, fds[CHILD_COUNT][2], ios[CHILD_COUNT + 1][2];
   pid_t pid; //, pids[CHILD_COUNT];
   char *beg = 0;
   char *end = 0;
+  char *buf[100];
 
   for (i = 0; i < CHILD_COUNT; i++) {
     Pipe(fds[i]);
-    if (IODAEMON == 1) {
-      Pipe(ios[i]);
-    }
+    Pipe(ios[i]);
     //fds[i][0] = 0;
     //fds[i][1] = 0;
   }
+  Pipe(ios[CHILD_COUNT]);
   if (CHILD_COUNT == 0) {
     return;
   }
 
   if (IODAEMON == 1) {
     io_daemonize(ios);
+    read(ios[CHILD_COUNT][0], buf, 100);
   }
 
   for(i = 0; i < CHILD_COUNT; i++) {

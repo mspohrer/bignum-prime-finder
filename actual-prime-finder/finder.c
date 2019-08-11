@@ -124,6 +124,6 @@ main(int argc, char **argv)
     no_threads(num_to_check, stop);
   else
     threads(num_to_check, stop);
-  write(STDOUT_FILENO, "-1\n", 3);
   mpz_clears(start, stop, remainder, num_to_check, NULL);
+  write(STDOUT_FILENO, "-1\n", 2);
 }
