@@ -124,7 +124,7 @@ Polling(int fds[CHILD_COUNT + 1][2])
   int i, j, poll_fd, file_out, ready_count;
   int ended = 0, prime_count = 0, read_len;
   mode_t mode;
-  char buf[MAX_LINE_IN], buf2[MAX_LINE_IN];
+  char buf[MAX_LINE_IN]; //, buf2[MAX_LINE_IN];
   struct epoll_event ev, events[EPOLL_MAX];
 
   mode = S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH;
@@ -144,37 +144,31 @@ Polling(int fds[CHILD_COUNT + 1][2])
   }
   write(fds[CHILD_COUNT][1], "ready", strlen("ready") + 1);
   for (;;) {
-    for (i = 0; i < CHILD_COUNT; i++) {
-      ready_count = epoll_wait(poll_fd, events, EPOLL_MAX, 0);
-      if (ready_count == -1) {
-        perror("epoll_wait()");
-        exit(EXIT_FAILURE);
-      }
-      //Fgets(buf, MAX_LINE_IN, fdopen(ready_fd, "r"));
-      for (j = 0; j < ready_count; j++) {
-        //printf("%i\n", events[j].data.fd);
-        //memset(buf, 0, MAX_LINE_IN);
-        read_len = read(events[j].data.fd, buf, MAX_LINE_IN);
-        if (strncmp(buf, "-1", 2) == 0) {
-          //ev.data = (int) events[j].data.fd;
-          //epoll_ctl(poll_fd, EPOLL_CTL_DEL, events[j].data.fd, &ev);
-          ended += 1;
+    ready_count = epoll_wait(poll_fd, events, EPOLL_MAX, 0);
+    if (ready_count == -1) {
+      perror("epoll_wait()");
+      exit(EXIT_FAILURE);
+    }
+    //Fgets(buf, MAX_LINE_IN, fdopen(ready_fd, "r"));
+    for (j = 0; j < ready_count; j++) {
+      //printf("%i\n", events[j].data.fd);
+      //memset(buf, 0, MAX_LINE_IN);
+      read_len = read(events[j].data.fd, buf, MAX_LINE_IN);
+      if (strncmp(buf, "-1", 2) == 0) {
+        //ev.data = (int) events[j].data.fd;
+        //epoll_ctl(poll_fd, EPOLL_CTL_DEL, events[j].data.fd, &ev);
+        ended += 1;
           //write(file_out, "End of one input\n", 17);
-        } else {
+      } else {
           //prime_count += 1;
           //write(STDOUT_FILENO, buf, strlen(buf) + 1);
-          write(file_out, buf, read_len);
+        write(file_out, buf, read_len);
           //sprintf(buf2, "%ld", strlen(buf));
           //write(file_out, buf2, strlen(buf2) + 1);
-        }
-        if (ended == CHILD_COUNT + 1) {
-          //sprintf(buf, "%d", prime_count);
-          //buf = itoa(prime_count);
-          //write(file_out, buf, strlen(buf) + 1);
-          //write(file_out, "primes found!\n", strlen("primes found!\n") + 1);
-          return(ended);
-        }
       }
+    }
+    if (ended == CHILD_COUNT) {
+      return(ended);
     }
   }
 }
@@ -232,7 +226,7 @@ io_daemonize(int fds[CHILD_COUNT + 1][2])
 
     //mode = S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH;
     //file_out = open("./prime-log.log", O_WRONLY | O_CREAT | O_TRUNC, mode);
-    if (Polling(fds) == CHILD_COUNT) {
+    if (Polling(fds) >= CHILD_COUNT) {
       exit(EXIT_SUCCESS);
     } else {
       exit(EXIT_FAILURE);
@@ -384,7 +378,7 @@ main(int argc, char *argv[])
         PTHREAD_COUNT = atoi(optarg);
         break;
       case 'd':
-        //IODAEMON = 1;
+        IODAEMON = 1;
         options[3] = 1;
         break;
       default:
