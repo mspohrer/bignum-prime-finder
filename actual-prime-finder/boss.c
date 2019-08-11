@@ -51,6 +51,7 @@ init_numbers(mpz_t increment, mpz_t start, mpz_t stop, mpz_t number)
 }
 
 int
+
 get_num(mpz_t min_exp, mpz_t max_exp)
 {
   char buf[MAX_LINE_IN];
@@ -66,12 +67,6 @@ get_num(mpz_t min_exp, mpz_t max_exp)
   mpz_init_set_ui(min_exp, 1);
   mpz_mul_2exp(min_exp, min_exp, start);
 
-/*
-  printf("This is just for now to experiment with huge numbers.\n"
-      "I got tired of entering 30 digit numbers by hand. \nEnter the"
-      "number 'x' for 2^x where 2^x will be the max number\n"
-      "I will check if prime: ");
-*/
   printf("Enter the number 'x' for 2^x where 2^x will be the maximum\n"
          "value checked: ");
   Fgets(buf, MAX_LINE_IN, stdin);
@@ -85,9 +80,10 @@ get_num(mpz_t min_exp, mpz_t max_exp)
   // initializes and sets the <number>
   // sets <number> equal to 2^x where x is equal to the number
   // entered by the user
+
   mpz_init_set_ui(max_exp, 1);
   mpz_mul_2exp(max_exp, max_exp, exponent);
-  //gmp_printf("%Zd is prime\n", min_exp);
+
   return exponent;
 }
 
@@ -252,6 +248,8 @@ pipes(mpz_t start, mpz_t stop, mpz_t increment)
   char *beg = 0;
   char *end = 0;
   char *buf[100];
+  char pthread[10];
+  sprintf(pthread, "%d", PTHREAD_COUNT);
 
   for (i = 0; i < CHILD_COUNT; i++) {
     Pipe(fds[i]);
@@ -280,7 +278,7 @@ pipes(mpz_t start, mpz_t stop, mpz_t increment)
         close(ios[j][0]);
         close(ios[j][1]);
       }
-      if (execl("./finder", "./finder", NULL) < 0)
+      if (execl("./finder", "./finder", pthread, NULL) < 0)
       {
         perror("execl() in call_child()");
         exit(EXIT_FAILURE);
@@ -315,6 +313,7 @@ pipes(mpz_t start, mpz_t stop, mpz_t increment)
     free(end);
 
   //printf("%d\n", CHILD_COUNT);
+
   for(i = 0; i < CHILD_COUNT + 1; i++) {
     pid = wait(NULL);
     //printf("%d exited\n", pid);
@@ -328,24 +327,30 @@ call_child(mpz_t start, mpz_t stop)
   pid_t pid;
   char *beg = 0;
   char *end = 0;
+  char pthread[10];
+  sprintf(pthread, "%d", PTHREAD_COUNT);
 
   beg = mpz_get_str(beg, DECIMAL, start);
   end = mpz_get_str(end, DECIMAL, stop);
 
   if((pid = Fork()) == 0)
   {
-    if(execl("./finder", "./finder", beg, end, NULL) == -1)
+    if(execl("./finder", "./finder", beg, end, pthread, NULL) == -1)
     {
       perror("execl() in call_child()");
       exit(EXIT_FAILURE);
     }
   }
+  if(beg) free(beg);
+  if(beg) free(end);
 }
 
 int
 main(int argc, char *argv[])
 {
-  mpz_t max_exp, start, stop, increment;
+  mpz_t number, start, stop, increment;
+  struct timeval time_start, time_stop, time_diff;
+
   int i,opt, options[NUM_OPTS], power;
 
   for(i = 0; i < NUM_OPTS; ++i)
@@ -390,6 +395,7 @@ main(int argc, char *argv[])
 
   init_numbers(increment, start, stop, max_exp);
         
+  gettimeofday(&time_start, NULL);
   // if the user want no children, the finder is called here
   // otherwise call the number of children asked for.
   if(CHILD_COUNT == 0)
@@ -408,11 +414,18 @@ main(int argc, char *argv[])
     for(i = 0; i < CHILD_COUNT; ++i)
       wait(NULL);
   } else //if number too big to pass directly, pipe to children */
+
   {
     pipes(start, stop, increment);
   }
+  gettimeofday(&time_stop, NULL);
 
+  timersub(&time_stop, &time_start, &time_diff);
+
+
+  printf("%ld Seconds; %ld Microseconds\n",time_diff.tv_sec, time_diff.tv_usec);
   mpz_clears(max_exp, start, stop, increment, NULL);
+
   exit(EXIT_SUCCESS);
 }
 
