@@ -37,8 +37,10 @@ init_numbers(mpz_t increment, mpz_t start, mpz_t stop, mpz_t number)
 {
   mpz_init_set_ui(increment, 1);
   if(CHILD_COUNT > 1) 
+
     mpz_fdiv_q_ui(increment, number, CHILD_COUNT);
-  mpz_init_set_ui(start, 1);
+  //mpz_init_set_ui(start, 1);
+
   if(CHILD_COUNT < 2) 
     mpz_init_set(stop, number);
   else 
@@ -49,24 +51,43 @@ init_numbers(mpz_t increment, mpz_t start, mpz_t stop, mpz_t number)
 }
 
 int
-get_num(mpz_t number)
+get_num(mpz_t min_exp, mpz_t max_exp)
 {
   char buf[MAX_LINE_IN];
-  int exponent;
+  int start, exponent;
+  
+  printf("Enter the number 'x' for 2^x where 2^x will be the minimum\n"
+         "value checked: ");
+  Fgets(buf, MAX_LINE_IN, stdin);
+  start = atoi(buf);
+  // initializes and sets the <number>
+  // sets <number> equal to 2^x where x is equal to the number
+  // entered by the user
+  mpz_init_set_ui(min_exp, 1);
+  mpz_mul_2exp(min_exp, min_exp, start);
 
+/*
   printf("This is just for now to experiment with huge numbers.\n"
       "I got tired of entering 30 digit numbers by hand. \nEnter the"
       "number 'x' for 2^x where 2^x will be the max number\n"
       "I will check if prime: ");
-
+*/
+  printf("Enter the number 'x' for 2^x where 2^x will be the maximum\n"
+         "value checked: ");
   Fgets(buf, MAX_LINE_IN, stdin);
   exponent = atoi(buf);
+
+  if (start > exponent) {
+    perror("get_num()");
+    exit(EXIT_FAILURE);
+  }
   
   // initializes and sets the <number>
   // sets <number> equal to 2^x where x is equal to the number
   // entered by the user
-  mpz_init_set_ui(number, 1);
-  mpz_mul_2exp(number, number, exponent);
+  mpz_init_set_ui(max_exp, 1);
+  mpz_mul_2exp(max_exp, max_exp, exponent);
+  //gmp_printf("%Zd is prime\n", min_exp);
   return exponent;
 }
 
@@ -84,9 +105,10 @@ finder(mpz_t begin, mpz_t end)
   mpz_init_set(stop, end);
   mpz_init_set(num_to_check, start);
   mpz_init_set(remainder, start);
+  mpz_mod_ui(remainder, num_to_check, 2);
 
   // makes start odd to ensure only odd numbers are checked
-  if(mpz_cdiv_r_ui(remainder, num_to_check, 2) == 0) 
+  if(mpz_cmp_ui(remainder, 0) == 0) 
     mpz_add_ui(num_to_check, num_to_check, 1);
 
   if(PTHREAD_COUNT == 0)
@@ -301,9 +323,8 @@ pipes(mpz_t start, mpz_t stop, mpz_t increment)
   //printf("%d\n", CHILD_COUNT);
   for(i = 0; i < CHILD_COUNT + 1; i++) {
     pid = wait(NULL);
-    printf("%d exited\n", pid);
+    //printf("%d exited\n", pid);
   }
-  
 }
 
 // calls the child process.
@@ -330,11 +351,12 @@ call_child(mpz_t start, mpz_t stop)
 int
 main(int argc, char *argv[])
 {
-  mpz_t number, start, stop, increment;
+  mpz_t max_exp, start, stop, increment;
   int i,opt, options[NUM_OPTS], power;
 
   for(i = 0; i < NUM_OPTS; ++i)
     options[i] = 0;
+
 
   if(!argv[1])
     {
@@ -357,14 +379,12 @@ main(int argc, char *argv[])
         break;
       case 'c':
         CHILD_COUNT = atoi(optarg);
-        options[1] = 1;
         break;
       case 'p':
         PTHREAD_COUNT = atoi(optarg);
-        options[2] = 1;
         break;
       case 'd':
-        IODAEMON = 1;
+        //IODAEMON = 1;
         options[3] = 1;
         break;
       default:
@@ -372,9 +392,9 @@ main(int argc, char *argv[])
     }
 
   
-  power = get_num(number);
+  power = get_num(start, max_exp);
 
-  init_numbers(increment, start, stop, number);
+  init_numbers(increment, start, stop, max_exp);
         
   // if the user want no children, the finder is called here
   // otherwise call the number of children asked for.
@@ -384,11 +404,12 @@ main(int argc, char *argv[])
   {
     for(i = 0; i < CHILD_COUNT; ++i)
     {
-      // mpz_add adds the last two variables and stores it in 
-      // the first variable
       call_child(start, stop);
+      if(CHILD_COUNT == 1) break;
       mpz_add_ui(start, stop, 1);
       mpz_add(stop, start, increment);
+      if(mpz_cmp(stop,number) > 0)
+        mpz_set(stop, number);
     }
     for(i = 0; i < CHILD_COUNT; ++i)
       wait(NULL);
@@ -397,7 +418,7 @@ main(int argc, char *argv[])
     pipes(start, stop, increment);
   }
 
-  mpz_clears(number, start, stop, increment, NULL);
+  mpz_clears(max_exp, start, stop, increment, NULL);
   exit(EXIT_SUCCESS);
 }
 
@@ -405,10 +426,55 @@ void *
 is_prime_wrapper(void *num)
 {
   mpz_t num_to_check;
-  mpz_set_str(num_to_check, num, DECIMAL);
-  is_prime(num);
+  mpz_init_set_str(num_to_check, num, DECIMAL);
+  is_prime(num_to_check);
   mpz_clear(num_to_check);
   pthread_exit(NULL);
+}
+
+// oof, this is kind of wonky. When passing iterated numbers through 
+// pthread_create, the pointer sometimes is pointing to the same data
+// as the previously created thread. The setup with the num[] prevents 
+// prevents that from happening. Concurrency is a pain!
+void
+threads(mpz_t num_to_check, mpz_t stop)
+{
+  int j, k, i, ret;
+  pthread_t ptid[PTHREAD_COUNT];
+  void *rval = NULL;
+  char *num[PTHREAD_COUNT];
+  
+  for(k = 0; k < PTHREAD_COUNT; ++k)
+    num[k] = 0;
+
+  k = 0;
+  i = 0;
+  while(mpz_cmp(num_to_check,stop) <= 0)
+  {
+
+    for(j = i; j < PTHREAD_COUNT; ++j){
+      if(num[k]) num[k] = 0;
+      num[k] = mpz_get_str(num[k], DECIMAL, num_to_check);
+      ret = pthread_create(&ptid[j], NULL, &is_prime_wrapper,(void*)num[k]);
+      if(ret != 0){
+        perror("threads()");
+        exit(EXIT_FAILURE);
+      }
+      mpz_add_ui(num_to_check, num_to_check, 2);
+      ++i;
+      ++k;
+      if(k >= PTHREAD_COUNT) k = 0;
+    }
+
+    for(k = 0; k < PTHREAD_COUNT; ++k){
+      ret = pthread_join(ptid[k], rval);
+      if(ret != 0){
+        perror("threads()");
+        exit(EXIT_FAILURE);
+      }
+      --i;
+    }
+  }
 }
 
 void 
@@ -439,7 +505,7 @@ is_prime(mpz_t num_to_check)
     mpz_add_ui(dividend, dividend, 2);
   }
 
-  if(result == 0 && rem != 0)
+  if(rem != 0)
     gmp_printf("%Zd is prime\n", num_to_check);
 
   mpz_clears(dividend, up_limit, remainder, NULL);
@@ -453,28 +519,5 @@ no_threads(mpz_t num_to_check, mpz_t stop)
   {
     is_prime(num_to_check);
     mpz_add_ui(num_to_check, num_to_check, 2);
-  }
-}
-
-void
-threads(mpz_t num_to_check, mpz_t stop)
-{
-  int j, k, i;
-  pthread_t ptid[PTHREAD_COUNT];
-  void *rval = NULL;
-
-  i = 0;
-  while(mpz_cmp(num_to_check,stop) <= 0)
-  {
-
-    for(j = i; j < PTHREAD_COUNT; ++j){
-      pthread_create(&ptid[k], NULL, &is_prime_wrapper, &num_to_check);
-      ++i;
-    }
-
-    for(k = 0; k < PTHREAD_COUNT; ++k){
-      pthread_join(ptid[k], rval);
-      --i;
-    }
   }
 }
