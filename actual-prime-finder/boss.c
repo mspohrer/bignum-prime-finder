@@ -97,20 +97,63 @@ finder(mpz_t begin, mpz_t end)
 }
 
 void
+Polling(int fds[CHILD_COUNT][2])
+{
+  int i, j, poll_fd, file_out, ready_count;
+  mode_t mode;
+  char buf[MAX_LINE_IN];
+  struct epoll_event evs[CHILD_COUNT], events[EPOLL_MAX];
+
+  mode = S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH;
+  file_out = open("./prime-log.log", O_WRONLY | O_CREAT | O_TRUNC, mode);
+
+  poll_fd = epoll_create(1);
+  for (i = 0;  i < CHILD_COUNT; i++) {
+    //write(STDOUT_FILENO, &fds[i][0], sizeof(int));
+    //printf("%i\n", fds[i][0]);
+    //printf("%i\n", poll_fd);
+    evs[i].events = EPOLLIN;
+    evs[i].data.fd = fds[i][0];
+    if (epoll_ctl(poll_fd, EPOLL_CTL_ADD, fds[i][0], &evs[i]) == -1) {
+      perror("epoll_ctl()");
+      exit(EXIT_FAILURE);
+    }
+  }
+  for (;;) {
+    for (i = 0; i < CHILD_COUNT; i++) {
+      ready_count = epoll_wait(poll_fd, events, EPOLL_MAX, 0);
+      if (ready_count == -1) {
+        perror("epoll_wait()");
+        exit(EXIT_FAILURE);
+      }
+      //Fgets(buf, MAX_LINE_IN, fdopen(ready_fd, "r"));
+      for (j = 0; j < ready_count; j++) {
+        //printf("%i\n", events[j].data.fd);
+        read(events[j].data.fd, buf, MAX_LINE_IN);
+        //write(STDOUT_FILENO, buf, strlen(buf) + 1);
+        write(file_out, buf, strlen(buf) + 1);
+      }
+    }
+  }
+}
+
+void
 io_daemonize(int fds[CHILD_COUNT][2])
 {
   int i, pid;
-  int fd0, fd1, fd2, file_out;
+  int fd0, fd1, fd2; //, file_out;
   struct rlimit rl;
-  mode_t mode;
+  //mode_t mode;
 
-  for(i = 0; i < CHILD_COUNT; i++) {
-    close(fds[i][1]);
-  }
 
   //don't want to exit the program to create the daemon,
   //so fork once before starting daemon work
   if ((pid = Fork()) == 0) {
+    /*
+    for(i = 0; i < CHILD_COUNT; i++) {
+      close(fds[i][1]);
+    }
+    */
 
     umask(0);
 
@@ -128,20 +171,29 @@ io_daemonize(int fds[CHILD_COUNT][2])
     if ((pid = Fork()) != 0) {
       exit(0);
     }
-
+/*
     if (rl.rlim_max == RLIM_INFINITY)
       rl.rlim_max = 1024;
     for (i = 0; i < rl.rlim_max; i++) {
       close(i);
     }
+    */
+    /*
+    close(STDIN_FILENO);
     fd0 = open("/dev/null", O_RDWR);
-    fd1 = dup(0);
-    fd2 = dup(0);
+    fd1 = dup2(0, STDOUT_FILENO);
+    fd2 = dup2(0, STDERR_FILENO);
 
-    mode = S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH;
-    file_out = open("./prime-log.log", O_WRONLY | O_CREAT | O_TRUNC, mode);
+    if (fd0 != 0 || fd1 != 1 || fd2 != 2) {
+      //perror("io_daemonize(): fds");
+      exit(EXIT_FAILURE);
+    }
+    */
 
-    while (1) { pause(); }
+    //mode = S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH;
+    //file_out = open("./prime-log.log", O_WRONLY | O_CREAT | O_TRUNC, mode);
+    Polling(fds);
+    //while (1) { pause(); }
   }
 }
 
@@ -157,13 +209,16 @@ Pipe(int *fd)
 void
 pipes(mpz_t start, mpz_t stop, mpz_t increment)
 {
-  int i, j, fds[CHILD_COUNT][2];
-  pid_t pid, pids[CHILD_COUNT];
+  int i, j, fds[CHILD_COUNT][2], ios[CHILD_COUNT][2];
+  pid_t pid; //, pids[CHILD_COUNT];
   char *beg = 0;
   char *end = 0;
 
   for (i = 0; i < CHILD_COUNT; i++) {
     Pipe(fds[i]);
+    if (IODAEMON == 1) {
+      Pipe(ios[i]);
+    }
     //fds[i][0] = 0;
     //fds[i][1] = 0;
   }
@@ -172,19 +227,19 @@ pipes(mpz_t start, mpz_t stop, mpz_t increment)
   }
 
   if (IODAEMON == 1) {
-    io_daemonize(fds);
+    io_daemonize(ios);
   }
 
   for(i = 0; i < CHILD_COUNT; i++) {
     if ((pid = Fork()) == 0) {
   //printf("%d\n", CHILD_COUNT);
       dup2(fds[i][0], STDIN_FILENO);
-      //dup2(fds[i][1], STDOUT_FILENO);
+      dup2(ios[i][1], STDOUT_FILENO);
       for (j = 0;  j < CHILD_COUNT; j++) {
-        if (fds[j][0] != 0) {
-          close(fds[j][0]);
-          close(fds[j][1]);
-        }
+        close(fds[j][0]);
+        close(fds[j][1]);
+        close(ios[j][0]);
+        close(ios[j][1]);
       }
       if (execl("./finder", "./finder", NULL) < 0)
       {
@@ -193,8 +248,8 @@ pipes(mpz_t start, mpz_t stop, mpz_t increment)
       }
     } else {
       //printf("Parent!\n");
-      pids[i] = pid;
-      close(fds[i][0]);
+      //pids[i] = pid;
+      //close(fds[i][0]);
     }
   }
   for(i = 0; i < CHILD_COUNT; i++) {
@@ -203,13 +258,13 @@ pipes(mpz_t start, mpz_t stop, mpz_t increment)
     end = mpz_get_str(end, DECIMAL, stop);
     write(fds[i][1], beg, strlen(beg) + 1);
     write(fds[i][1], "\n", 1);
-    //write(STDOUT_FILENO, beg, strlen(beg) + 1);
-    //write(STDOUT_FILENO, "\n", 1);
+    write(STDOUT_FILENO, beg, strlen(beg) + 1);
+    write(STDOUT_FILENO, "\n", 1);
     sleep(2);
     write(fds[i][1], end, strlen(end) + 1);
     write(fds[i][1], "\n", 1);
-    //write(STDOUT_FILENO, end, strlen(end) + 1);
-    //write(STDOUT_FILENO, "\n", 1);
+    write(STDOUT_FILENO, end, strlen(end) + 1);
+    write(STDOUT_FILENO, "\n", 1);
     mpz_add_ui(start, stop, 1);
     mpz_add(stop, start, increment);
     //printf("%d\n", CHILD_COUNT);
@@ -221,7 +276,7 @@ pipes(mpz_t start, mpz_t stop, mpz_t increment)
     free(end);
 
   //printf("%d\n", CHILD_COUNT);
-  for(i = 0; i < CHILD_COUNT; i++) {
+  for(i = 0; i < CHILD_COUNT + 1; i++) {
     pid = wait(NULL);
     printf("%d exited\n", pid);
   }

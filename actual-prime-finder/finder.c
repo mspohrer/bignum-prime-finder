@@ -13,6 +13,7 @@ is_prime(mpz_t num_to_check)
   int result = 0;
   int rem = 0;
   mpz_t dividend, up_limit, remainder;
+  char *prime = 0;
 
   mpz_init_set_ui(dividend, 3);
   mpz_init_set_ui(up_limit, 1);
@@ -35,8 +36,11 @@ is_prime(mpz_t num_to_check)
     mpz_add_ui(dividend, dividend, 2);
   }
 
-  if(rem != 0)
+  if(rem != 0) {
+    //prime = mpz_get_str(prime, DECIMAL, num_to_check);
+    //printf("%s is prime\n", prime);
     gmp_printf("%Zd is prime\n", num_to_check);
+  }
 }
 
 void
