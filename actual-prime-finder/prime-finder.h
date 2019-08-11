@@ -8,7 +8,10 @@
 #include <string.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <sys/resource.h>
+#include <sys/stat.h>
 #include <unistd.h>
+#include <fcntl.h>
 
 // the number of numbers each child is responsible to check if prime
 int CHILD_COUNT = 0;

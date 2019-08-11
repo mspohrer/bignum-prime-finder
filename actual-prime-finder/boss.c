@@ -97,6 +97,55 @@ finder(mpz_t begin, mpz_t end)
 }
 
 void
+io_daemonize(int fds[CHILD_COUNT][2])
+{
+  int i, pid;
+  int fd0, fd1, fd2, file_out;
+  struct rlimit rl;
+  mode_t mode;
+
+  for(i = 0; i < CHILD_COUNT; i++) {
+    close(fds[i][1]);
+  }
+
+  //don't want to exit the program to create the daemon,
+  //so fork once before starting daemon work
+  if ((pid = Fork()) == 0) {
+
+    umask(0);
+
+    if (getrlimit(RLIMIT_NOFILE, &rl) < 0) {
+      perror("io_daemonize()");
+      exit(EXIT_FAILURE);
+    }
+
+    if ((pid = Fork()) != 0) {
+      exit(0);
+    }
+
+    setsid();
+
+    if ((pid = Fork()) != 0) {
+      exit(0);
+    }
+
+    if (rl.rlim_max == RLIM_INFINITY)
+      rl.rlim_max = 1024;
+    for (i = 0; i < rl.rlim_max; i++) {
+      close(i);
+    }
+    fd0 = open("/dev/null", O_RDWR);
+    fd1 = dup(0);
+    fd2 = dup(0);
+
+    mode = S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH;
+    file_out = open("./prime-log.log", O_WRONLY | O_CREAT | O_TRUNC, mode);
+
+    while (1) { pause(); }
+  }
+}
+
+void
 Pipe(int *fd)
 {
   if(pipe(fd) < 0){
@@ -114,15 +163,19 @@ pipes(mpz_t start, mpz_t stop, mpz_t increment)
   char *end = 0;
 
   for (i = 0; i < CHILD_COUNT; i++) {
-    fds[i][0] = 0;
-    fds[i][1] = 0;
+    Pipe(fds[i]);
+    //fds[i][0] = 0;
+    //fds[i][1] = 0;
   }
   if (CHILD_COUNT == 0) {
     return;
   }
 
+  if (IODAEMON == 1) {
+    io_daemonize(fds);
+  }
+
   for(i = 0; i < CHILD_COUNT; i++) {
-    Pipe(fds[i]);
     if ((pid = Fork()) == 0) {
   //printf("%d\n", CHILD_COUNT);
       dup2(fds[i][0], STDIN_FILENO);
@@ -210,11 +263,12 @@ main(int argc, char *argv[])
         printf("Usage:\n ./boss [OPTIONS]\n"
             "-t run with a time check to test speeds \n"
             "-c [INTEGER] select number of children to use\n"
-            "-p [INTEGER] select number of threads to use\n");
+            "-p [INTEGER] select number of threads to use\n"
+            "-d run with an IO daemon\n");
         exit(EXIT_FAILURE);
     }
 
-  while((opt = getopt (argc,argv, "tc:p:")) != -1)
+  while((opt = getopt (argc,argv, "tc:p:d")) != -1)
     switch (opt) 
     {
       case 't':
@@ -248,7 +302,7 @@ main(int argc, char *argv[])
   // otherwise call the number of children asked for.
   if(CHILD_COUNT == 0)
     finder(start, stop);
-  else if (power < 435409)  //max exponent for childcount 1
+  else /*if (power < 435409)  //max exponent for childcount 1
   {
     for(i = 0; i < CHILD_COUNT; ++i)
     {
@@ -260,7 +314,7 @@ main(int argc, char *argv[])
     }
     for(i = 0; i < CHILD_COUNT; ++i)
       wait(NULL);
-  } else //if number too big to pass directly, pipe to children
+  } else //if number too big to pass directly, pipe to children */
   {
     pipes(start, stop, increment);
   }
