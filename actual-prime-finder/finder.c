@@ -35,14 +35,8 @@ is_prime(mpz_t num_to_check)
     
     mpz_add_ui(dividend, dividend, 2);
   }
-
-
-  if(rem != 0) {
-    //prime = mpz_get_str(prime, DECIMAL, num_to_check);
-    //printf("%s is prime\n", prime);
+  if(rem != 0)
     gmp_printf("%Zd is prime\n", num_to_check);
-  }
-
 }
 
 void
@@ -59,32 +53,52 @@ void *
 is_prime_wrapper(void *num)
 {
   mpz_t num_to_check;
-  mpz_set_str(num_to_check, num, DECIMAL);
-  gmp_printf("%Zd  wrapper\n", num);
-  is_prime(num);
+  mpz_init_set_str(num_to_check, num, DECIMAL);
+  is_prime(num_to_check);
   mpz_clear(num_to_check);
   pthread_exit(NULL);
 }
 
+// oof, this is kind of wonky. When passing iterated numbers through 
+// pthread_create, the pointer sometimes is pointing to the same data
+// as the previously created thread. The setup with the num[] prevents 
+// prevents that from happening. Concurrency is a pain!
 void
 threads(mpz_t num_to_check, mpz_t stop)
 {
-  int j, k, i;
+  int j, k, i, ret;
   pthread_t ptid[PTHREAD_COUNT];
   void *rval = NULL;
+  char *num[PTHREAD_COUNT];
+  
+  for(k = 0; k < PTHREAD_COUNT; ++k)
+    num[k] = 0;
 
+  k = 0;
   i = 0;
   while(mpz_cmp(num_to_check,stop) <= 0)
   {
-    for(j = i; j < PTHREAD_COUNT; ++j)
-    {
-      pthread_create(&ptid[k], NULL, &is_prime_wrapper, &num_to_check);
+
+    for(j = i; j < PTHREAD_COUNT; ++j){
+      if(num[k]) num[k] = 0;
+      num[k] = mpz_get_str(num[k], DECIMAL, num_to_check);
+      ret = pthread_create(&ptid[j], NULL, &is_prime_wrapper,(void*)num[k]);
+      if(ret != 0){
+        perror("threads()");
+        exit(EXIT_FAILURE);
+      }
+      mpz_add_ui(num_to_check, num_to_check, 2);
       ++i;
+      ++k;
+      if(k >= PTHREAD_COUNT) k = 0;
     }
 
-    for(k = 0; k < PTHREAD_COUNT; ++k)
-    {
-      pthread_join(ptid[k], rval);
+    for(k = 0; k < PTHREAD_COUNT; ++k){
+      ret = pthread_join(ptid[k], rval);
+      if(ret != 0){
+        perror("threads()");
+        exit(EXIT_FAILURE);
+      }
       --i;
     }
   }
@@ -99,11 +113,12 @@ main(int argc, char **argv)
   // converts the char * passed from ./boss to mpz_t 
   // for start and stop
 
-  if (argc == 3) {
+  if (argc == 4) {
     mpz_init_set_str(start, argv[1], 10);
     //printf("value from argv[1]: %s\n", argv[1]);
     mpz_init_set_str(stop, argv[2], 10);
     //printf("value from argv[2]: %s\n", argv[2]);
+    PTHREAD_COUNT = atoi(argv[3]);
   }
   else {
     //printf("reading child\n");
@@ -115,6 +130,7 @@ main(int argc, char **argv)
     buf[strlen(buf)] = 0;
     //printf("end:%s\n", buf);
     mpz_init_set_str(stop, buf, 10);
+    PTHREAD_COUNT = atoi(argv[1]);
   }
   mpz_init_set(num_to_check, start);
   mpz_init(remainder);
