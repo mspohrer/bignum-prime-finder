@@ -119,9 +119,9 @@ finder(mpz_t begin, mpz_t end)
 }
 
 int
-Polling(int fds[CHILD_COUNT + 1][2])
+Polling(int fds[CHILD_COUNT + 2][2])
 {
-  int i, j, poll_fd, file_out, ready_count;
+  int i, j, poll_fd, file_out, ready_count, all_done = 0;
   int ended = 0, prime_count = 0, read_len;
   mode_t mode;
   char buf[MAX_LINE_IN]; //, buf2[MAX_LINE_IN];
@@ -131,7 +131,7 @@ Polling(int fds[CHILD_COUNT + 1][2])
   file_out = open("./prime-log.log", O_WRONLY | O_CREAT | O_TRUNC, mode);
 
   poll_fd = epoll_create(1);
-  for (i = 0;  i < CHILD_COUNT; i++) {
+  for (i = 0;  i < CHILD_COUNT + 1; i++) {
     //write(STDOUT_FILENO, &fds[i][0], sizeof(int));
     //printf("%i\n", fds[i][0]);
     //printf("%i\n", poll_fd);
@@ -142,34 +142,42 @@ Polling(int fds[CHILD_COUNT + 1][2])
       exit(EXIT_FAILURE);
     }
   }
-  write(fds[CHILD_COUNT][1], "ready", strlen("ready") + 1);
+  if (IODAEMON == 1)
+    write(fds[CHILD_COUNT + 1][1], "ready", strlen("ready") + 1);
   for (;;) {
     ready_count = epoll_wait(poll_fd, events, EPOLL_MAX, 0);
     if (ready_count == -1) {
       perror("epoll_wait()");
       exit(EXIT_FAILURE);
     }
+    if (ready_count == 0 && all_done == 1)
+      return(0);
     //Fgets(buf, MAX_LINE_IN, fdopen(ready_fd, "r"));
     for (j = 0; j < ready_count; j++) {
       //printf("%i\n", events[j].data.fd);
       //memset(buf, 0, MAX_LINE_IN);
-      read_len = read(events[j].data.fd, buf, MAX_LINE_IN);
-      if (strncmp(buf, "-1", 2) == 0) {
+      if (events[j].data.fd == CHILD_COUNT + 1) {
+        all_done = 1;
+        read_len = read(events[j].data.fd, buf, MAX_LINE_IN);
+      } else {
+        read_len = read(events[j].data.fd, buf, MAX_LINE_IN);
+      //if (strncmp(buf, "-1", 2) == 0) {
         //ev.data = (int) events[j].data.fd;
         //epoll_ctl(poll_fd, EPOLL_CTL_DEL, events[j].data.fd, &ev);
-        ended += 1;
-          //write(file_out, "End of one input\n", 17);
-      } else {
+        //ended += 1;
+        //write(file_out, "End of one input\n", 17);
+      //} else {
           //prime_count += 1;
           //write(STDOUT_FILENO, buf, strlen(buf) + 1);
         write(file_out, buf, read_len);
+      }
           //sprintf(buf2, "%ld", strlen(buf));
           //write(file_out, buf2, strlen(buf2) + 1);
-      }
+      //}
     }
-    if (ended == CHILD_COUNT) {
-      return(ended);
-    }
+    //if (ended >= CHILD_COUNT) {
+      //return(ended);
+    //}
   }
 }
 
@@ -266,7 +274,7 @@ pipes(mpz_t start, mpz_t stop, mpz_t increment)
 
   if (IODAEMON == 1) {
     io_daemonize(ios);
-    read(ios[CHILD_COUNT][0], buf, 100);
+    read(ios[CHILD_COUNT + 1][0], buf, 100);
   }
 
   for(i = 0; i < CHILD_COUNT; i++) {
@@ -314,10 +322,21 @@ pipes(mpz_t start, mpz_t stop, mpz_t increment)
   if (end != 0)
     free(end);
 
-  //printf("%d\n", CHILD_COUNT);
-  for(i = 0; i < CHILD_COUNT + 1; i++) {
-    pid = wait(NULL);
-    //printf("%d exited\n", pid);
+  if (IODAEMON == 0) {
+    if ((pid = Fork()) == 0)
+      Polling(ios);
+    else {
+      if (IODAEMON == 1) {
+        for(i = 0; i < CHILD_COUNT; i++) {
+          pid = wait(NULL);
+        } 
+      } else {
+        for(i = 0; i < CHILD_COUNT; i++) {
+          pid = wait(NULL);
+        }
+      }
+      write(ios[CHILD_COUNT][0], "done", 5);
+    }
   }
 }
 
