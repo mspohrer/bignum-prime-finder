@@ -118,7 +118,7 @@ int
 Polling(int fds[CHILD_COUNT + 2][2])
 {
   int i, j, poll_fd, file_out, ready_count, all_done = 0;
-  int ended = 0, prime_count = 0, read_len;
+  int read_len;
   mode_t mode;
   char buf[MAX_LINE_IN]; //, buf2[MAX_LINE_IN];
   struct epoll_event ev, events[EPOLL_MAX];
@@ -180,27 +180,14 @@ Polling(int fds[CHILD_COUNT + 2][2])
 void
 io_daemonize(int fds[CHILD_COUNT + 1][2])
 {
-  int i, pid;
-  int fd0, fd1, fd2; //, file_out;
-  struct rlimit rl;
-  //mode_t mode;
-
+  int pid;
+  int fd0, fd1, fd2; 
 
   //don't want to exit the program to create the daemon,
   //so fork once before starting daemon work
   if ((pid = Fork()) == 0) {
-    /*
-    for(i = 0; i < CHILD_COUNT; i++) {
-      close(fds[i][1]);
-    }
-    */
 
     umask(0);
-
-    if (getrlimit(RLIMIT_NOFILE, &rl) < 0) {
-      perror("io_daemonize()");
-      exit(EXIT_FAILURE);
-    }
 
     if ((pid = Fork()) != 0) {
       exit(0);
@@ -211,31 +198,21 @@ io_daemonize(int fds[CHILD_COUNT + 1][2])
     if ((pid = Fork()) != 0) {
       exit(0);
     }
-/*
-    if (rl.rlim_max == RLIM_INFINITY)
-      rl.rlim_max = 1024;
-    for (i = 0; i < rl.rlim_max; i++) {
-      close(i);
-    }
-    */
+
     close(STDIN_FILENO);
     fd0 = open("/dev/null", O_RDWR);
     fd1 = dup2(0, STDOUT_FILENO);
     fd2 = dup2(0, STDERR_FILENO);
 
     if (fd0 != 0 || fd1 != 1 || fd2 != 2) {
-      //perror("io_daemonize(): fds");
       exit(EXIT_FAILURE);
     }
 
-    //mode = S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH;
-    //file_out = open("./prime-log.log", O_WRONLY | O_CREAT | O_TRUNC, mode);
     if (Polling(fds) >= CHILD_COUNT) {
       exit(EXIT_SUCCESS);
     } else {
       exit(EXIT_FAILURE);
     }
-    //while (1) { pause(); }
   }
 }
 
@@ -262,8 +239,6 @@ pipes(mpz_t start, mpz_t stop, mpz_t increment)
   for (i = 0; i < CHILD_COUNT; i++) {
     Pipe(fds[i]);
     Pipe(ios[i]);
-    //fds[i][0] = 0;
-    //fds[i][1] = 0;
   }
   Pipe(ios[CHILD_COUNT]);
   if (CHILD_COUNT == 0) {
@@ -277,7 +252,6 @@ pipes(mpz_t start, mpz_t stop, mpz_t increment)
 
   for(i = 0; i < CHILD_COUNT; i++) {
     if ((pid = Fork()) == 0) {
-  //printf("%d\n", CHILD_COUNT);
       dup2(fds[i][0], STDIN_FILENO);
       dup2(ios[i][1], STDOUT_FILENO);
       for (j = 0;  j < CHILD_COUNT; j++) {
@@ -291,28 +265,18 @@ pipes(mpz_t start, mpz_t stop, mpz_t increment)
         perror("execl() in call_child()");
         exit(EXIT_FAILURE);
       }
-    } else {
-      //printf("Parent!\n");
-      //pids[i] = pid;
-      //close(fds[i][0]);
     }
   }
   for(i = 0; i < CHILD_COUNT; i++) {
-    //TODO NON-BLOCKING I/O
     beg = mpz_get_str(beg, DECIMAL, start);
     end = mpz_get_str(end, DECIMAL, stop);
     write(fds[i][1], beg, strlen(beg) + 1);
     write(fds[i][1], "\n", 1);
-    //write(STDOUT_FILENO, beg, strlen(beg) + 1);
-    //write(STDOUT_FILENO, "\n", 1);
     sleep(2);
     write(fds[i][1], end, strlen(end) + 1);
     write(fds[i][1], "\n", 1);
-    //write(STDOUT_FILENO, end, strlen(end) + 1);
-    //write(STDOUT_FILENO, "\n", 1);
     mpz_add_ui(start, stop, 1);
     mpz_add(stop, start, increment);
-    //printf("%d\n", CHILD_COUNT);
   }
   if (beg != 0)
     free(beg);
@@ -366,10 +330,10 @@ main(int argc, char *argv[])
   mpz_t number, start, stop, increment, max_exp;
   struct timeval time_start, time_stop, time_diff;
 
-  int i,opt, options[NUM_OPTS], power;
+  int i, opt; //, options[NUM_OPTS], power;
 
-  for(i = 0; i < NUM_OPTS; ++i)
-    options[i] = 0;
+  //for(i = 0; i < NUM_OPTS; ++i)
+    //options[i] = 0;
 
 
   if(!argv[1])
@@ -378,16 +342,17 @@ main(int argc, char *argv[])
             "-t run with a time check to test speeds \n"
             "-c [INTEGER] select number of children to use\n"
             "-p [INTEGER] select number of threads to use\n"
-            "-d run with an IO daemon\n");
+            "-d run with an IO daemon\n"
+            "-x pass values to child processes using pipes\n");
         exit(EXIT_FAILURE);
     }
 
-  while((opt = getopt (argc,argv, "tc:p:d")) != -1)
+  while((opt = getopt (argc,argv, "tc:p:dx")) != -1)
     switch (opt) 
     {
       case 't':
         // to run with time checks
-        options[0] = 1;
+        //options[0] = 1;
         if (CHILD_COUNT == 0)
           CHILD_COUNT = 1;
         break;
@@ -399,24 +364,28 @@ main(int argc, char *argv[])
         break;
       case 'd':
         IODAEMON = 1;
-        options[3] = 1;
+        //options[3] = 1;
+        break;
+      case 'x':
+        PIPES = 1;
         break;
       default:
         exit(EXIT_FAILURE);
     }
 
   
-  power = get_num(start, max_exp);
+  get_num(start, max_exp);
 
   init_numbers(increment, start, stop, max_exp);
         
   gettimeofday(&time_start, NULL);
   // if the user want no children, the finder is called here
   // otherwise call the number of children asked for.
-  if(CHILD_COUNT == 0)
+  if(CHILD_COUNT == 0) {
     finder(start, stop);
-  else /*if (power < 435409)  //max exponent for childcount 1
-  {
+  } else if (PIPES == 1) {
+    pipes(start, stop, increment);
+  } else {
     for(i = 0; i < CHILD_COUNT; ++i)
     {
       call_child(start, stop);
@@ -428,15 +397,11 @@ main(int argc, char *argv[])
     }
     for(i = 0; i < CHILD_COUNT; ++i)
       wait(NULL);
-  } else //if number too big to pass directly, pipe to children */
-
-  {
-    pipes(start, stop, increment);
   }
+
   gettimeofday(&time_stop, NULL);
 
   timersub(&time_stop, &time_start, &time_diff);
-
 
   printf("%ld Seconds; %ld Microseconds\n",time_diff.tv_sec, time_diff.tv_usec);
   mpz_clears(max_exp, start, stop, increment, NULL);
