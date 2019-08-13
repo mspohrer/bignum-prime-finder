@@ -38,10 +38,13 @@ Fork()
 void
 init_numbers(mpz_t increment, mpz_t start, mpz_t stop, mpz_t number)
 {
+  mpz_t range;
   mpz_init_set_ui(increment, 1);
-  if(CHILD_COUNT > 1) 
-
-    mpz_fdiv_q_ui(increment, number, CHILD_COUNT);
+  if(CHILD_COUNT > 1) {
+    mpz_init(range);
+    mpz_sub(range, number, start);
+    mpz_fdiv_q_ui(increment, range, CHILD_COUNT);
+  }
   //mpz_init_set_ui(start, 1);
 
   if(CHILD_COUNT < 2) 
@@ -148,6 +151,7 @@ Polling(int fds[CHILD_COUNT + 2][2])
     ev.events = EPOLLIN;
     ev.data.fd = fds[i][0];
     if (epoll_ctl(poll_fd, EPOLL_CTL_ADD, fds[i][0], &ev) == -1) {
+      printf("%i : ", i);
       perror("epoll_ctl()");
       exit(EXIT_FAILURE);
     }
@@ -261,6 +265,7 @@ pipes(mpz_t start, mpz_t stop, mpz_t increment, mpz_t max_exp)
   }
 
   if (IODAEMON == 1) {
+    Pipe(ios[CHILD_COUNT + 1]);
     io_daemonize(ios);
     read(ios[CHILD_COUNT + 1][0], buf, 100);
   }
@@ -282,7 +287,7 @@ pipes(mpz_t start, mpz_t stop, mpz_t increment, mpz_t max_exp)
       }
     }
   }
-  printf("%i\n", CHILD_COUNT);
+  //printf("%i\n", CHILD_COUNT);
   for(i = 0; i < CHILD_COUNT; i++) {
     beg = malloc(mpz_sizeinbase(start, DECIMAL));
     end = malloc(mpz_sizeinbase(stop, DECIMAL));
@@ -361,6 +366,11 @@ void
 no_pipes(mpz_t start, mpz_t stop, mpz_t increment, mpz_t max_exp) {
   int i, pid;
   int fds[CHILD_COUNT + 2][2];
+
+  for(i=0; i < CHILD_COUNT + 2; i++)
+  {
+    Pipe(fds[i]);
+  }
 
   for(i = 0; i < CHILD_COUNT; ++i)
   {
