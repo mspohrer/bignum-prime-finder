@@ -26,7 +26,14 @@ int PIPES = 0;
 #define MAX_LINE_IN sysconf(_SC_LINE_MAX)
 #define EPOLL_MAX 10
 
-void Pthread_create(pthread_t*,pthread_attr_t *, void *(*start_rtn)(void *), void *restrict arg);
+struct node {
+  mpz_t num;
+  struct node *next;
+  int checked;
+  pthread_mutex_t lock;
+};
+
+
 void is_prime(mpz_t num_to_check);
 void no_threads(mpz_t num_to_check, mpz_t stop);
 void threads(mpz_t num_to_check, mpz_t stop);

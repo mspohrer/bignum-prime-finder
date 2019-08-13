@@ -7,6 +7,8 @@
 
 #include "prime-finder.h"
 
+//struct node *head;
+mpz_t INCREMENT;
 void 
 is_prime(mpz_t num_to_check)
 {
@@ -34,8 +36,8 @@ is_prime(mpz_t num_to_check)
     
     mpz_add_ui(dividend, dividend, 2);
   }
-  if(rem != 0)
-    gmp_printf("%Zd is prime\n", num_to_check);
+ // if(rem != 0)
+//    gmp_printf("%Zd is prime\n", num_to_check);
 }
 
 void
@@ -49,12 +51,20 @@ no_threads(mpz_t num_to_check, mpz_t stop)
 }
 
 void *
-is_prime_wrapper(void *num)
+is_prime_wrapper(void *arg)
 {
-  mpz_t num_to_check;
-  mpz_init_set_str(num_to_check, num, DECIMAL);
-  is_prime(num_to_check);
-  mpz_clear(num_to_check);
+  mpz_t start, stop;
+  mpz_init_set_str(start, arg, DECIMAL);
+    gmp_printf("%Zd\n", start);
+  mpz_init(stop);
+  mpz_add(stop, start, INCREMENT);
+  
+  while(mpz_cmp(start,stop) <= 0)
+  {
+    is_prime(start);
+    mpz_add_ui(start, start, 2);
+  }
+
   pthread_exit(NULL);
 }
 
@@ -63,45 +73,145 @@ is_prime_wrapper(void *num)
 // as the previously created thread. The setup with the num[] prevents 
 // prevents that from happening. Concurrency is a pain!
 void
-threads(mpz_t num_to_check, mpz_t stop)
+threads(mpz_t start, mpz_t stop)
 {
-  int j, k, i, ret;
+  int k, ret;
   pthread_t ptid[PTHREAD_COUNT];
-  void *rval = NULL;
-  char *num[PTHREAD_COUNT];
+  char *starts[PTHREAD_COUNT];
+  mpz_t diff;
   
+  mpz_init(INCREMENT);
+  mpz_init(diff);
+  
+  mpz_sub(diff, stop, start);
+  mpz_cdiv_q_ui(INCREMENT, diff, PTHREAD_COUNT);
+
+  memset(starts, 0, sizeof(starts)); 
+
   for(k = 0; k < PTHREAD_COUNT; ++k)
-    num[k] = 0;
-
-  k = 0;
-  i = 0;
-  while(mpz_cmp(num_to_check,stop) <= 0)
   {
+    starts[k] = mpz_get_str(starts[k], DECIMAL, start);
+    mpz_add(start, start, INCREMENT);
+    mpz_add_ui(start, start, 1);
+  }
 
-    for(j = i; j < PTHREAD_COUNT; ++j){
-      if(num[k]) num[k] = 0;
-      num[k] = mpz_get_str(num[k], DECIMAL, num_to_check);
-      ret = pthread_create(&ptid[j], NULL, &is_prime_wrapper,(void*)num[k]);
-      if(ret != 0){
-        perror("threads()");
-        exit(EXIT_FAILURE);
-      }
-      mpz_add_ui(num_to_check, num_to_check, 2);
-      ++i;
-      ++k;
-      if(k >= PTHREAD_COUNT) k = 0;
+  for(k = 0; k < PTHREAD_COUNT; ++k)
+  {
+    //printf("threads %Zd\n", starts[k]);
+    ret = pthread_create(&ptid[k], NULL, &is_prime_wrapper, (void *) starts[k]);
+    if(ret != 0){
+      perror("threads()");
+      exit(EXIT_FAILURE);
     }
-
-    for(k = 0; k < PTHREAD_COUNT; ++k){
-      ret = pthread_join(ptid[k], rval);
-      if(ret != 0){
-        perror("threads()");
-        exit(EXIT_FAILURE);
-      }
-      --i;
+  }
+  for(k = 0; k < PTHREAD_COUNT; ++k){
+    ret = pthread_join(ptid[k], NULL);
+    if(ret != 0){
+      perror("threads()");
+      exit(EXIT_FAILURE);
     }
   }
 }
+
+  //gmp_printf("increment %Zd\n", increment);
+
+  /*
+  while(!head);
+  struct node *temp = NULL;
+  while(mpz_cmp_ui(temp->num, 0) != 0){
+    while(!head);
+    pthread_mutex_lock(&head->lock);
+    temp = head;
+    head = head->next;
+    //temp->next = NULL;
+    pthread_mutex_unlock(&temp->lock);
+    is_prime(temp->num);
+    mpz_clear(temp->num);
+    pthread_mutex_destroy(&temp->lock);
+    free(temp);
+  }
+  sleep(1);
+  while(head) 
+  {
+    gmp_printf("%Zd\n", head->num);
+    head = head->next;
+  }
+  while(mpz_cmp(num_to_check,stop) <= 0)
+  {
+    is_prime(num_to_check);
+    mpz_add_ui(num_to_check, num_to_check, 2);
+  }
+  */
+  /*
+struct node *
+init_node()
+{
+  struct node *temp = malloc(sizeof(struct node));
+  mpz_init(temp->num);
+  pthread_mutex_init(&temp->lock, NULL);
+  pthread_mutex_lock(&temp->lock);
+  temp->checked = 0;
+  temp->next = NULL;
+  return temp;
+}
+  for(k = 0; k < PTHREAD_COUNT; ++k)
+    printf("threads %s\n", starts[k]);
+  for(k = 0; k < PTHREAD_COUNT; ++k)
+    gmp_printf("threads %Zd\n", range[k]);
+  for(k = 0; k < PTHREAD_COUNT; ++k){
+    ret = pthread_join(ptid[k], NULL);
+    if(ret != 0){
+      perror("threads()");
+      exit(EXIT_FAILURE);
+    }
+  }
+  */
+
+/*
+  //struct node *tail = NULL;
+  //head = NULL;
+  if(PTHREAD_COUNT > 1) 
+    mpz_fdiv_q_ui(increment, number, CHILD_COUNT);
+
+  if(PTHREAD_COUNT < 2) 
+    mpz_init_set(stop, number);
+  else 
+  {
+    mpz_init(stop);
+    mpz_add(stop, start, increment);
+
+  for(int j = 0; j < PTHREAD_COUNT; ++j)
+  {
+    ret = pthread_create(&ptid[j], NULL, &is_prime_wrapper, NULL);
+    if(ret != 0){
+      perror("threads()");
+      exit(EXIT_FAILURE);
+    }
+  }
+  */
+  /*
+  while(mpz_cmp(num_to_check,stop) <= 0)
+  {
+    if(!head) {
+      head = init_node();
+      mpz_set(head->num, num_to_check);
+      pthread_mutex_unlock(&head->lock);
+      tail = head;
+      head->next = NULL;
+    } else {
+      tail->next = init_node();
+      mpz_set(tail->num, num_to_check);
+      pthread_mutex_unlock(&tail->lock);
+      tail->next = NULL;
+      tail = tail->next;
+    }
+    mpz_add_ui(num_to_check, num_to_check, 2);
+  }
+  tail = init_node();
+  mpz_set_ui(tail->num, 0);
+  tail->next = NULL;
+  pthread_mutex_unlock(&tail->lock);
+  */
 
 int
 main(int argc, char **argv)

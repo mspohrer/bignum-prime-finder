@@ -39,11 +39,10 @@ void
 init_numbers(mpz_t increment, mpz_t start, mpz_t stop, mpz_t number)
 {
   mpz_init_set_ui(increment, 1);
+  
   if(CHILD_COUNT > 1) 
-
     mpz_fdiv_q_ui(increment, number, CHILD_COUNT);
-  //mpz_init_set_ui(start, 1);
-
+  
   if(CHILD_COUNT < 2) 
     mpz_init_set(stop, number);
   else 
@@ -361,15 +360,18 @@ void
 no_pipes(mpz_t start, mpz_t stop, mpz_t increment, mpz_t max_exp) {
   int i, pid;
   int fds[CHILD_COUNT + 2][2];
+  mpz_t diff;
+  mpz_init(diff);
+  mpz_sub(diff, max_exp, start);
+  mpz_cdiv_q_ui(increment, diff, CHILD_COUNT);
 
   for(i = 0; i < CHILD_COUNT; ++i)
   {
-    call_child(start, stop, fds[i]);
-    if(CHILD_COUNT == 1) break;
-    mpz_add_ui(start, stop, 1);
     mpz_add(stop, start, increment);
     if(mpz_cmp(stop, max_exp) > 0)
       mpz_set(stop, max_exp);
+    call_child(start, stop, fds[i]);
+    mpz_add_ui(start, stop, 1);
   }
   if ((pid = Fork()) == 0 ) {
     Polling(fds);
@@ -385,15 +387,11 @@ main(int argc, char *argv[])
   mpz_t start, stop, increment, max_exp;
   struct timeval time_start, time_stop, time_diff;
 
-  int opt; //, options[NUM_OPTS], power;
-
-  //for(i = 0; i < NUM_OPTS; ++i)
-    //options[i] = 0;
+  int opt;
 
   if(!argv[1])
     {
         printf("Usage:\n ./boss [OPTIONS]\n"
-            //"-t run with a time check to test speeds \n"
             "-c [INTEGER] select number of children to use\n"
             "-p [INTEGER] select number of threads to use\n"
             "-d run with an IO daemon\n"
@@ -405,8 +403,6 @@ main(int argc, char *argv[])
     switch (opt) 
     {
       case 't':
-        // to run with time checks
-        //options[0] = 1;
         if (CHILD_COUNT == 0)
           CHILD_COUNT = 1;
         break;
@@ -418,7 +414,6 @@ main(int argc, char *argv[])
         break;
       case 'd':
         IODAEMON = 1;
-        //options[3] = 1;
         break;
       case 'x':
         PIPES = 1;
@@ -446,6 +441,7 @@ main(int argc, char *argv[])
 
   timersub(&time_stop, &time_start, &time_diff);
 
+  sleep(5);
   printf("%ld Seconds; %ld Microseconds\n",time_diff.tv_sec, time_diff.tv_usec);
   mpz_clears(max_exp, start, stop, increment, NULL);
 
@@ -539,7 +535,6 @@ is_prime(mpz_t num_to_check)
     gmp_printf("%Zd is prime\n", num_to_check);
 
   mpz_clears(dividend, up_limit, remainder, NULL);
-  if(PTHREAD_COUNT > 0) pthread_exit(NULL);
 }
 
 void
