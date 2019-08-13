@@ -5,6 +5,9 @@
 // prime numbers existing below that number
 #include "prime-finder.h"
 
+void Pipe(int *fd);
+int Polling(int fds[CHILD_COUNT + 2][2]);
+
 void
 Fgets(char *buf, int size, FILE *where_from)
 {
@@ -94,7 +97,8 @@ void
 finder(mpz_t begin, mpz_t end)
 {
   mpz_t start, stop, remainder, num_to_check;
-
+  int fds[3][2], i, pid, stdout_reopen;
+  //CHILD_COUNT = 0;
   // converts the char * passed from ./boss to mpz_t 
   // for start and stop
   mpz_init_set(start, begin);
@@ -106,11 +110,21 @@ finder(mpz_t begin, mpz_t end)
   // makes start odd to ensure only odd numbers are checked
   if(mpz_cmp_ui(remainder, 0) == 0) 
     mpz_add_ui(num_to_check, num_to_check, 1);
-
+  
+  for (i = 0; i < 3; i++) {
+    Pipe(fds[i]);
+  }
+  stdout_reopen = dup(STDOUT_FILENO);
+  dup2(fds[0][1], STDOUT_FILENO);
   if(PTHREAD_COUNT == 0)
     no_threads(num_to_check, stop);
   else
     threads(num_to_check, stop);
+  if ((pid = Fork()) == 0) {
+    Polling(fds);
+    exit(EXIT_SUCCESS);
+  }
+  dup2(stdout_reopen, STDOUT_FILENO);
   mpz_clears(start, stop, remainder, num_to_check, NULL);
 }
 
@@ -208,7 +222,7 @@ io_daemonize(int fds[CHILD_COUNT + 1][2])
       exit(EXIT_FAILURE);
     }
 
-    if (Polling(fds) >= CHILD_COUNT) {
+    if (Polling(fds) == CHILD_COUNT) {
       exit(EXIT_SUCCESS);
     } else {
       exit(EXIT_FAILURE);
@@ -226,10 +240,11 @@ Pipe(int *fd)
 }
 
 void
-pipes(mpz_t start, mpz_t stop, mpz_t increment)
+pipes(mpz_t start, mpz_t stop, mpz_t increment, mpz_t max_exp)
 {
   int i, j, fds[CHILD_COUNT][2], ios[CHILD_COUNT + 1][2];
   pid_t pid; //, pids[CHILD_COUNT];
+  //int mpzsize = mpz_sizeinbase(10
   char *beg = 0;
   char *end = 0;
   char *buf[100];
@@ -267,41 +282,58 @@ pipes(mpz_t start, mpz_t stop, mpz_t increment)
       }
     }
   }
+  printf("%i\n", CHILD_COUNT);
   for(i = 0; i < CHILD_COUNT; i++) {
+    beg = malloc(mpz_sizeinbase(start, DECIMAL));
+    end = malloc(mpz_sizeinbase(stop, DECIMAL));
     beg = mpz_get_str(beg, DECIMAL, start);
     end = mpz_get_str(end, DECIMAL, stop);
-    write(fds[i][1], beg, strlen(beg) + 1);
+    write(fds[i][1], beg, strlen(beg));
     write(fds[i][1], "\n", 1);
-    sleep(2);
-    write(fds[i][1], end, strlen(end) + 1);
+    //write(STDOUT_FILENO, beg, strlen(beg));
+    //write(STDOUT_FILENO, "\n", 1);
+    //sleep(2);
+    write(fds[i][1], end, strlen(end));
     write(fds[i][1], "\n", 1);
+    //write(STDOUT_FILENO, end, strlen(end));
+    //write(STDOUT_FILENO, "\n", 1);
     mpz_add_ui(start, stop, 1);
     mpz_add(stop, start, increment);
+    if(mpz_cmp(stop, max_exp) > 0)
+      mpz_set(stop, max_exp);
   }
-  if (beg != 0)
+  if (beg != 0) {
     free(beg);
+    beg = NULL;
+  }
 
-  if (end != 0)
+  if (end != NULL) {
     free(end);
+    end = NULL;
+  }
 
   if (IODAEMON == 0) {
+    //for(i = 0; i < CHILD_COUNT; i++) {
     if ((pid = Fork()) == 0) {
       Polling(ios);
-    }
-    for(i = 0; i < CHILD_COUNT; i++) {
-      pid = wait(NULL);
+      exit(EXIT_SUCCESS);
+    } else {
+      for(i = 0; i < CHILD_COUNT; i++) {
+        pid = wait(NULL);
+      }
+      write(ios[CHILD_COUNT][0], "done", 5);
     }
   } else {
     for(i = 0; i < CHILD_COUNT + 1; i++) {
       pid = wait(NULL);
     } 
+    write(ios[CHILD_COUNT][0], "done", 5);
   }
-  write(ios[CHILD_COUNT][0], "done", 5);
 }
 
 // calls the child process.
 void
-call_child(mpz_t start, mpz_t stop)
+call_child(mpz_t start, mpz_t stop, int fds[2])
 {
   pid_t pid;
   char *beg = 0;
@@ -314,6 +346,7 @@ call_child(mpz_t start, mpz_t stop)
 
   if((pid = Fork()) == 0)
   {
+    dup2(fds[1], STDOUT_FILENO);
     if(execl("./finder", "./finder", beg, end, pthread, NULL) == -1)
     {
       perror("execl() in call_child()");
@@ -324,22 +357,43 @@ call_child(mpz_t start, mpz_t stop)
   if(beg) free(end);
 }
 
+void
+no_pipes(mpz_t start, mpz_t stop, mpz_t increment, mpz_t max_exp) {
+  int i, pid;
+  int fds[CHILD_COUNT + 2][2];
+
+  for(i = 0; i < CHILD_COUNT; ++i)
+  {
+    call_child(start, stop, fds[i]);
+    if(CHILD_COUNT == 1) break;
+    mpz_add_ui(start, stop, 1);
+    mpz_add(stop, start, increment);
+    if(mpz_cmp(stop, max_exp) > 0)
+      mpz_set(stop, max_exp);
+  }
+  if ((pid = Fork()) == 0 ) {
+    Polling(fds);
+    exit(EXIT_SUCCESS);
+  }
+  for(i = 0; i < CHILD_COUNT; ++i)
+    wait(NULL);
+}
+
 int
 main(int argc, char *argv[])
 {
-  mpz_t number, start, stop, increment, max_exp;
+  mpz_t start, stop, increment, max_exp;
   struct timeval time_start, time_stop, time_diff;
 
-  int i, opt; //, options[NUM_OPTS], power;
+  int opt; //, options[NUM_OPTS], power;
 
   //for(i = 0; i < NUM_OPTS; ++i)
     //options[i] = 0;
 
-
   if(!argv[1])
     {
         printf("Usage:\n ./boss [OPTIONS]\n"
-            "-t run with a time check to test speeds \n"
+            //"-t run with a time check to test speeds \n"
             "-c [INTEGER] select number of children to use\n"
             "-p [INTEGER] select number of threads to use\n"
             "-d run with an IO daemon\n"
@@ -373,7 +427,6 @@ main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
 
-  
   get_num(start, max_exp);
 
   init_numbers(increment, start, stop, max_exp);
@@ -384,19 +437,9 @@ main(int argc, char *argv[])
   if(CHILD_COUNT == 0) {
     finder(start, stop);
   } else if (PIPES == 1) {
-    pipes(start, stop, increment);
+    pipes(start, stop, increment, max_exp);
   } else {
-    for(i = 0; i < CHILD_COUNT; ++i)
-    {
-      call_child(start, stop);
-      if(CHILD_COUNT == 1) break;
-      mpz_add_ui(start, stop, 1);
-      mpz_add(stop, start, increment);
-      if(mpz_cmp(stop,number) > 0)
-        mpz_set(stop, number);
-    }
-    for(i = 0; i < CHILD_COUNT; ++i)
-      wait(NULL);
+    no_pipes(start, stop, increment, max_exp);
   }
 
   gettimeofday(&time_stop, NULL);
