@@ -466,7 +466,6 @@ main(int argc, char *argv[])
 
   timersub(&time_stop, &time_start, &time_diff);
 
-  sleep(10);
   printf("%ld Seconds; %ld Microseconds\n",time_diff.tv_sec, time_diff.tv_usec);
   mpz_clears(max_exp, start, stop, increment, INCREMENT, NULL);
 
@@ -478,7 +477,6 @@ is_prime_wrapper(void *arg)
 {
   mpz_t start, stop, remainder;
   mpz_init_set_str(start, arg, DECIMAL);
-    gmp_printf("%Zd\n", start);
   mpz_init(stop);
   mpz_init(remainder);
   mpz_add(stop, start, INCREMENT);
@@ -561,7 +559,7 @@ is_prime(mpz_t num_to_check)
   //gmp_fprintf(stderr, "here %Zd\n", num_to_check);
   fflush(NULL);
   if(rem != 0)
-    gmp_printf("%Zd is prime\n", num_to_check);
+    gmp_printf("%Zd ", num_to_check);
   fflush(NULL);
 
   mpz_clears(dividend, up_limit, remainder, NULL);
