@@ -114,26 +114,24 @@ main(int argc, char **argv)
 
   // converts the char * passed from ./boss to mpz_t 
   // for start and stop
-
+  // if it was passed 4 arguments, no piping used
   if (argc == 4) {
     mpz_init_set_str(start, argv[1], 10);
-    //printf("value from argv[1]: %s\n", argv[1]);
     mpz_init_set_str(stop, argv[2], 10);
-    //printf("value from argv[2]: %s\n", argv[2]);
     PTHREAD_COUNT = atoi(argv[3]);
   }
+  //otherwise, assume values were piped to child
   else {
     filein = fdopen(STDIN_FILENO, "r");
     fgets(buf, MAX_LINE_IN, filein);
 
     if (buf[strlen(buf)-1] == '\n')
       buf[strlen(buf) - 1] = 0;
-    //printf("start:%s\n", buf);
     mpz_init_set_str(start, buf, 10);
+
     fgets(buf, MAX_LINE_IN, filein);
     if (buf[strlen(buf)-1] == '\n')
       buf[strlen(buf) - 1] = 0;
-    //printf("end:%s\n", buf);
     mpz_init_set_str(stop, buf, 10);
     PTHREAD_COUNT = atoi(argv[1]);
   }
@@ -156,4 +154,5 @@ main(int argc, char **argv)
   }
 
   mpz_clears(start, stop, remainder, num_to_check, diff, INCREMENT, NULL);
+  return(0);
 }
