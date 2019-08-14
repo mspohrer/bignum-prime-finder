@@ -7,6 +7,7 @@
 
 #include "prime-finder.h"
 
+
 // checks if the number sent to it is a prime number. Starts at
 // 3 and goes until the square root of the number being checked. 
 void 
@@ -123,7 +124,9 @@ int
 main(int argc, char **argv)
 {
   mpz_t start, stop, remainder, num_to_check, diff;
-  char buf[MAX_LINE_IN];
+  //gets the size of the pipe
+  int pipe_size = fcntl(STDIN_FILENO, F_GETPIPE_SZ);
+  char buf[pipe_size];
   FILE *filein;
 
   // converts the char * passed from ./boss to mpz_t 

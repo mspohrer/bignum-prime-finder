@@ -259,8 +259,8 @@ void
 pipes(mpz_t start, mpz_t stop, mpz_t increment, mpz_t max_exp)
 {
   int i, j, fds[CHILD_COUNT][2], ios[CHILD_COUNT + 1][2];
-  pid_t pid; //, pids[CHILD_COUNT];
-  //int mpzsize = mpz_sizeinbase(10
+  pid_t pid; 
+  int mpzsize = mpz_sizeinbase(max_exp, DECIMAL);
   char *beg = 0;
   char *end = 0;
   char *buf[100];
@@ -290,6 +290,9 @@ pipes(mpz_t start, mpz_t stop, mpz_t increment, mpz_t max_exp)
       //pipe io to correct places
       dup2(fds[i][0], STDIN_FILENO);
       dup2(ios[i][1], STDOUT_FILENO);
+      //changes pipe size
+      fcntl(fds[i][0], F_SETPIPE_SZ, mpzsize);
+
       // close unneeded pipes
       for (j = 0;  j < CHILD_COUNT; j++) {
         close(fds[j][0]);
@@ -426,18 +429,7 @@ main(int argc, char *argv[])
 {
   mpz_t start, stop, increment, max_exp, diff;
   struct timeval time_start, time_stop, time_diff;
-
   int opt;
-
-  if(!argv[1])
-    {
-        printf("Usage:\n ./boss [OPTIONS]\n"
-            "-c [INTEGER] select number of children to use\n"
-            "-t [INTEGER] select number of threads to use\n"
-            "-d run with an IO daemon\n"
-            "-p pass values to child processes using pipes\n");
-        exit(EXIT_FAILURE);
-    }
 
   while((opt = getopt (argc,argv, "t:c:pd")) != -1)
     switch (opt) 
@@ -455,6 +447,11 @@ main(int argc, char *argv[])
         PIPES = 1;
         break;
       default:
+        printf("Usage:\n ./boss [OPTIONS]\n"
+            "-c [INTEGER] select number of children to use\n"
+            "-t [INTEGER] select number of threads to use\n"
+            "-d run with an IO daemon\n"
+            "-p pass values to child processes using pipes\n");
         exit(EXIT_FAILURE);
     }
   
