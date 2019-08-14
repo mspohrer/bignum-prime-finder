@@ -208,9 +208,14 @@ init_node()
 int
 main(int argc, char **argv)
 {
+<<<<<<< HEAD
   mpz_t start, stop, remainder, num_to_check, diff;
   char buf[BUFSIZ], buf2[MAX_LINE_IN];
   int read_in;
+=======
+  mpz_t start, stop, remainder, num_to_check;
+  char buf[MAX_LINE_IN];
+>>>>>>> 18a6d770e9569a3044867996ca3b82c449620acc
   FILE *filein;
 
   // converts the char * passed from ./boss to mpz_t 
@@ -218,28 +223,24 @@ main(int argc, char **argv)
 
   if (argc == 4) {
     mpz_init_set_str(start, argv[1], 10);
-    printf("value from argv[1]: %s\n", argv[1]);
+    //printf("value from argv[1]: %s\n", argv[1]);
     mpz_init_set_str(stop, argv[2], 10);
-    printf("value from argv[2]: %s\n", argv[2]);
+    //printf("value from argv[2]: %s\n", argv[2]);
     PTHREAD_COUNT = atoi(argv[3]);
   }
   else {
     filein = fdopen(STDIN_FILENO, "r");
-    //printf("reading child\n");
-    //read_in = read(STDIN_FILENO, &buf, sizeof(buf)-1);
-    fgets(buf2, MAX_LINE_IN, filein);
+    fgets(buf, MAX_LINE_IN, filein);
 
-    if (buf2[strlen(buf2)-1] == '\n')
-      buf2[strlen(buf2) - 1] = 0;
-    printf("start:%s\n", buf2);
-    mpz_init_set_str(start, buf2, 10);
-    fgets(buf2, MAX_LINE_IN, filein);
-    if (buf2[strlen(buf2)-1] == '\n')
-      buf2[strlen(buf2) - 1] = 0;
-    //read(STDIN_FILENO, &buf, sizeof(buf)-1);
-    //buf[strlen(buf)] = 0;
-    //printf("end:%s\n", buf2);
-    mpz_init_set_str(stop, buf2, 10);
+    if (buf[strlen(buf)-1] == '\n')
+      buf[strlen(buf) - 1] = 0;
+    //printf("start:%s\n", buf);
+    mpz_init_set_str(start, buf, 10);
+    fgets(buf, MAX_LINE_IN, filein);
+    if (buf[strlen(buf)-1] == '\n')
+      buf[strlen(buf) - 1] = 0;
+    //printf("end:%s\n", buf);
+    mpz_init_set_str(stop, buf, 10);
     PTHREAD_COUNT = atoi(argv[1]);
   }
   mpz_init(remainder);
