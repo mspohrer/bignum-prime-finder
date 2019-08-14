@@ -123,21 +123,28 @@ finder(mpz_t begin, mpz_t end)
   for (i = 0; i < 3; i++) {
     Pipe(fds[i]);
   }
-  //hold stdout, as we will reinstate it after finding the primes
-  stdout_reopen = dup(STDOUT_FILENO);
-
-  //connect to pipe for polling file i/o
-  dup2(fds[0][1], STDOUT_FILENO);
-
-  if(PTHREAD_COUNT == 0){
-    no_threads(num_to_check, stop);
-  }
-  else
-    threads(num_to_check, stop);
   //polling must happen in a child process
   if ((pid = Fork()) == 0) {
     Polling(fds);
     exit(EXIT_SUCCESS);
+  }
+  else
+  {
+
+    //hold stdout, as we will reinstate it after finding the primes
+    stdout_reopen = dup(STDOUT_FILENO);
+
+    //connect to pipe for polling file i/o
+    dup2(fds[0][1], STDOUT_FILENO);
+
+    if(PTHREAD_COUNT == 0){
+      no_threads(num_to_check, stop);
+    }
+    else
+      threads(num_to_check, stop);
+
+    write(fds[CHILD_COUNT][1], "done", 4);
+    wait(NULL);
   }
   dup2(stdout_reopen, STDOUT_FILENO);
   mpz_clears(start, stop, remainder, num_to_check, NULL);
@@ -163,7 +170,6 @@ Polling(int fds[CHILD_COUNT + 2][2])
     ev.events = EPOLLIN;
     ev.data.fd = fds[i][0];
     if (epoll_ctl(poll_fd, EPOLL_CTL_ADD, fds[i][0], &ev) == -1) {
-      printf("%i : ", i);
       perror("epoll_ctl()");
       exit(EXIT_FAILURE);
     }
@@ -182,28 +188,14 @@ Polling(int fds[CHILD_COUNT + 2][2])
     for (j = 0; j < ready_count; j++) {
       //printf("%i\n", events[j].data.fd);
       //memset(buf, 0, MAX_LINE_IN);
-      if (events[j].data.fd == CHILD_COUNT + 1) {
+      if (events[j].data.fd == fds[CHILD_COUNT][0]) {
         all_done = 1;
         read_len = read(events[j].data.fd, buf, MAX_LINE_IN);
       } else {
         read_len = read(events[j].data.fd, buf, MAX_LINE_IN);
-      //if (strncmp(buf, "-1", 2) == 0) {
-        //ev.data = (int) events[j].data.fd;
-        //epoll_ctl(poll_fd, EPOLL_CTL_DEL, events[j].data.fd, &ev);
-        //ended += 1;
-        //write(file_out, "End of one input\n", 17);
-      //} else {
-          //prime_count += 1;
-          //write(STDOUT_FILENO, buf, strlen(buf) + 1);
         write(file_out, buf, read_len);
       }
-          //sprintf(buf2, "%ld", strlen(buf));
-          //write(file_out, buf2, strlen(buf2) + 1);
-      //}
     }
-    //if (ended >= CHILD_COUNT) {
-      //return(ended);
-    //}
   }
 }
 
@@ -466,6 +458,7 @@ main(int argc, char *argv[])
 
   timersub(&time_stop, &time_start, &time_diff);
 
+  //sleep(5);
   printf("%ld Seconds; %ld Microseconds\n",time_diff.tv_sec, time_diff.tv_usec);
   mpz_clears(max_exp, start, stop, increment, INCREMENT, NULL);
 
