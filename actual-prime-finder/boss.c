@@ -152,6 +152,7 @@ finder(mpz_t begin, mpz_t end)
   mpz_clears(start, stop, remainder, num_to_check, NULL);
 }
 
+// File i/o through epolling
 int
 Polling(int fds[CHILD_COUNT + 2][2])
 {
@@ -161,14 +162,13 @@ Polling(int fds[CHILD_COUNT + 2][2])
   char buf[MAX_LINE_IN]; //, buf2[MAX_LINE_IN];
   struct epoll_event ev, events[EPOLL_MAX];
 
+  //open log file
   mode = S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH;
   file_out = open("./prime-log.log", O_WRONLY | O_CREAT | O_TRUNC, mode);
 
+  //set up epoll
   poll_fd = epoll_create(1);
   for (i = 0;  i < CHILD_COUNT + 1; i++) {
-    //write(STDOUT_FILENO, &fds[i][0], sizeof(int));
-    //printf("%i\n", fds[i][0]);
-    //printf("%i\n", poll_fd);
     ev.events = EPOLLIN;
     ev.data.fd = fds[i][0];
     if (epoll_ctl(poll_fd, EPOLL_CTL_ADD, fds[i][0], &ev) == -1) {
@@ -176,20 +176,23 @@ Polling(int fds[CHILD_COUNT + 2][2])
       exit(EXIT_FAILURE);
     }
   }
+  //if using the daemon, tell the original parent that the daemon is ready
+  // to begin file io
   if (IODAEMON == 1)
     write(fds[CHILD_COUNT + 1][1], "ready", strlen("ready") + 1);
+
+  //now we poll!
   for (;;) {
     ready_count = epoll_wait(poll_fd, events, EPOLL_MAX, 0);
     if (ready_count == -1) {
       perror("epoll_wait()");
       exit(EXIT_FAILURE);
     }
+    // exit condition - all children exited
     if (ready_count == 0 && all_done == 1)
       return(0);
-    //Fgets(buf, MAX_LINE_IN, fdopen(ready_fd, "r"));
     for (j = 0; j < ready_count; j++) {
-      //printf("%i\n", events[j].data.fd);
-      //memset(buf, 0, MAX_LINE_IN);
+      //if reading from parent process, all children have exited
       if (events[j].data.fd == fds[CHILD_COUNT][0]) {
         all_done = 1;
         read_len = read(events[j].data.fd, buf, MAX_LINE_IN);
@@ -201,6 +204,7 @@ Polling(int fds[CHILD_COUNT + 2][2])
   }
 }
 
+//create io daemon
 void
 io_daemonize(int fds[CHILD_COUNT + 1][2])
 {
@@ -222,16 +226,20 @@ io_daemonize(int fds[CHILD_COUNT + 1][2])
     if ((pid = Fork()) != 0) {
       exit(0);
     }
-
+    
+    //close stdio files, open to dev/null
     close(STDIN_FILENO);
     fd0 = open("/dev/null", O_RDWR);
     fd1 = dup2(0, STDOUT_FILENO);
     fd2 = dup2(0, STDERR_FILENO);
 
+    // don't want to see "unused variable message, so check that
+    // they opened correctly
     if (fd0 != 0 || fd1 != 1 || fd2 != 2) {
       exit(EXIT_FAILURE);
     }
-
+    
+    //call polling function.
     Polling(fds);
     exit(EXIT_SUCCESS);
   }
@@ -246,6 +254,7 @@ Pipe(int *fd)
   }
 }
 
+// pipe values to children
 void
 pipes(mpz_t start, mpz_t stop, mpz_t increment, mpz_t max_exp)
 {
@@ -268,22 +277,30 @@ pipes(mpz_t start, mpz_t stop, mpz_t increment, mpz_t max_exp)
   }
 
   if (IODAEMON == 1) {
+    // need one more pipe for daemon
     Pipe(ios[CHILD_COUNT + 1]);
+    //start daemon
     io_daemonize(ios);
+    // when read in happens, daemon is ready
     read(ios[CHILD_COUNT + 1][0], buf, 100);
   }
 
   for(i = 0; i < CHILD_COUNT; i++) {
     if ((pid = Fork()) == 0) {
+      //pipe io to correct places
       dup2(fds[i][0], STDIN_FILENO);
       dup2(ios[i][1], STDOUT_FILENO);
+      //changes pipe size
       fcntl(fds[i][0], F_SETPIPE_SZ, mpzsize);
+
+      // close unneeded pipes
       for (j = 0;  j < CHILD_COUNT; j++) {
         close(fds[j][0]);
         close(fds[j][1]);
         close(ios[j][0]);
         close(ios[j][1]);
       }
+      //exec the finder program
       if (execl("./finder", "./finder", pthread, NULL) < 0)
       {
         perror("execl() in call_child()");
@@ -291,26 +308,26 @@ pipes(mpz_t start, mpz_t stop, mpz_t increment, mpz_t max_exp)
       }
     }
   }
-  //printf("%i\n", CHILD_COUNT);
   for(i = 0; i < CHILD_COUNT; i++) {
+    // allocate space for mpzs in char arrays
     beg = malloc(mpz_sizeinbase(start, DECIMAL));
     end = malloc(mpz_sizeinbase(stop, DECIMAL));
+    // convert mpzs to strings for piping
     beg = mpz_get_str(beg, DECIMAL, start);
     end = mpz_get_str(end, DECIMAL, stop);
+    //write range to children
     write(fds[i][1], beg, strlen(beg));
     write(fds[i][1], "\n", 1);
-    //write(STDOUT_FILENO, beg, strlen(beg));
-    //write(STDOUT_FILENO, "\n", 1);
-    //sleep(2);
     write(fds[i][1], end, strlen(end));
     write(fds[i][1], "\n", 1);
-    //write(STDOUT_FILENO, end, strlen(end));
-    //write(STDOUT_FILENO, "\n", 1);
+
+    //increment start and stop to next range
     mpz_add_ui(start, stop, 1);
     mpz_add(stop, start, increment);
     if(mpz_cmp(stop, max_exp) > 0)
       mpz_set(stop, max_exp);
   }
+
   if (beg != 0) {
     free(beg);
     beg = NULL;
@@ -322,7 +339,7 @@ pipes(mpz_t start, mpz_t stop, mpz_t increment, mpz_t max_exp)
   }
 
   if (IODAEMON == 0) {
-    //for(i = 0; i < CHILD_COUNT; i++) {
+    // polling must be done in a separate process
     if ((pid = Fork()) == 0) {
       Polling(ios);
       exit(EXIT_SUCCESS);
@@ -330,12 +347,14 @@ pipes(mpz_t start, mpz_t stop, mpz_t increment, mpz_t max_exp)
       for(i = 0; i < CHILD_COUNT; i++) {
         pid = wait(NULL);
       }
+      //polling child knows to shut down
       write(ios[CHILD_COUNT][0], "done", 5);
     }
   } else {
     for(i = 0; i < CHILD_COUNT + 1; i++) {
       pid = wait(NULL);
     } 
+    //polling child knows to shut down
     write(ios[CHILD_COUNT][0], "done", 5);
   }
 }
@@ -366,20 +385,24 @@ call_child(mpz_t start, mpz_t stop, int fds[2])
   if(beg) free(end);
 }
 
+// if not piping values, use this
 void
 no_pipes(mpz_t start, mpz_t stop, mpz_t increment, mpz_t max_exp) {
   int i, pid;
   int fds[CHILD_COUNT + 2][2];
   mpz_t diff;
+
+  //make sure increment is set correctly
   mpz_init(diff);
   mpz_sub(diff, max_exp, start);
   mpz_cdiv_q_ui(increment, diff, CHILD_COUNT);
 
+  // create pipes for polling
   for(i=0; i < CHILD_COUNT + 2; i++)
   {
     Pipe(fds[i]);
   }
-
+  
   for(i = 0; i < CHILD_COUNT; ++i)
   {
     mpz_add(stop, start, increment);
@@ -388,12 +411,15 @@ no_pipes(mpz_t start, mpz_t stop, mpz_t increment, mpz_t max_exp) {
     call_child(start, stop, fds[i]);
     mpz_add_ui(start, stop, 1);
   }
+
+  // polling in separate function
   if ((pid = Fork()) == 0 ) {
     Polling(fds);
     exit(EXIT_SUCCESS);
   } else {
     for(i = 0; i < CHILD_COUNT; ++i)
       wait(NULL);
+    //tell polling to exit when it's done reading/writing
     write(fds[CHILD_COUNT][0], "done", 4);
   }
 }
