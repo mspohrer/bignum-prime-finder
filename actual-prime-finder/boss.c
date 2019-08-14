@@ -57,29 +57,34 @@ init_numbers(mpz_t increment, mpz_t start, mpz_t stop, mpz_t number)
 }
 
 int
-
 get_num(mpz_t min_exp, mpz_t max_exp)
 {
   char buf[MAX_LINE_IN];
   int start, exponent;
   
-  printf("Enter the number 'x' for 2^x where 2^x will be the minimum\n"
-         "value checked: ");
-  Fgets(buf, MAX_LINE_IN, stdin);
+  buf[0] = 0;
+  while (buf[0] > '9' || buf[0] < '0') {
+    printf("Enter the number 'x' for 2^x where 2^x will be the minimum\n"
+          "value checked: ");
+    Fgets(buf, MAX_LINE_IN, stdin);
+  }
   start = atoi(buf);
   // initializes and sets the <number>
   // sets <number> equal to 2^x where x is equal to the number
   // entered by the user
   mpz_init_set_ui(min_exp, 1);
   mpz_mul_2exp(min_exp, min_exp, start);
-
-  printf("Enter the number 'x' for 2^x where 2^x will be the maximum\n"
-         "value checked: ");
-  Fgets(buf, MAX_LINE_IN, stdin);
+  
+  buf[0] = 0;
+  while (buf[0] > '9' || buf[0] < '0') {
+    printf("Enter the number 'x' for 2^x where 2^x will be the maximum\n"
+          "value checked: ");
+    Fgets(buf, MAX_LINE_IN, stdin);
+  }
   exponent = atoi(buf);
 
-  if (start > exponent) {
-    perror("get_num()");
+  if (start >= exponent) {
+    perror("Max must be greater than min");
     exit(EXIT_FAILURE);
   }
   
@@ -114,15 +119,21 @@ finder(mpz_t begin, mpz_t end)
   if(mpz_cmp_ui(remainder, 0) == 0) 
     mpz_add_ui(num_to_check, num_to_check, 1);
   
+  //create pipes for polling.
   for (i = 0; i < 3; i++) {
     Pipe(fds[i]);
   }
+  //hold stdout, as we will reinstate it after finding the primes
   stdout_reopen = dup(STDOUT_FILENO);
+
+  //connect to pipe for polling file i/o
   dup2(fds[0][1], STDOUT_FILENO);
+
   if(PTHREAD_COUNT == 0)
     no_threads(num_to_check, stop);
   else
     threads(num_to_check, stop);
+  //polling must happen in a child process
   if ((pid = Fork()) == 0) {
     Polling(fds);
     exit(EXIT_SUCCESS);
@@ -403,34 +414,27 @@ main(int argc, char *argv[])
   if(!argv[1])
     {
         printf("Usage:\n ./boss [OPTIONS]\n"
-            //"-t run with a time check to test speeds \n"
             "-c [INTEGER] select number of children to use\n"
-            "-p [INTEGER] select number of threads to use\n"
+            "-t [INTEGER] select number of threads to use\n"
             "-d run with an IO daemon\n"
-            "-x pass values to child processes using pipes\n");
+            "-p pass values to child processes using pipes\n");
         exit(EXIT_FAILURE);
     }
 
-  while((opt = getopt (argc,argv, "tc:p:dx")) != -1)
+  while((opt = getopt (argc,argv, "t:c:pd")) != -1)
     switch (opt) 
     {
-      case 't':
-        // to run with time checks
-        //options[0] = 1;
-        if (CHILD_COUNT == 0)
-          CHILD_COUNT = 1;
-        break;
       case 'c':
         CHILD_COUNT = atoi(optarg);
         break;
-      case 'p':
+      case 't':
         PTHREAD_COUNT = atoi(optarg);
         break;
       case 'd':
         IODAEMON = 1;
         //options[3] = 1;
         break;
-      case 'x':
+      case 'p':
         PIPES = 1;
         break;
       default:
