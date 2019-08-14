@@ -7,6 +7,8 @@
 
 #include "prime-finder.h"
 
+// checks if the number sent to it is a prime number. Starts at
+// 3 and goes until the square root of the number being checked. 
 void 
 is_prime(mpz_t num_to_check)
 {
@@ -38,6 +40,8 @@ is_prime(mpz_t num_to_check)
     gmp_printf("%Zd ", num_to_check);
 }
 
+// if no threads are requested by the user, the single, main thread
+// of control cycles through the range checking if prime.
 void
 no_threads(mpz_t num_to_check, mpz_t stop)
 {
@@ -48,15 +52,17 @@ no_threads(mpz_t num_to_check, mpz_t stop)
   }
 }
 
+// wrapper that allows pthread_create to call the is_prime function
 void *
 is_prime_wrapper(void *arg)
 {
   mpz_t start, stop, remainder;
   mpz_init_set_str(start, arg, DECIMAL);
-    //gmp_printf("%Zd\n", start);
   mpz_init(stop);
   mpz_init(remainder);
   mpz_add(stop, start, INCREMENT);
+
+  // ensures never checking even numbers
   if(mpz_cdiv_r_ui(remainder, start, 2) == 0)
     mpz_add_ui(start,start,1);
   
@@ -70,6 +76,8 @@ is_prime_wrapper(void *arg)
   pthread_exit(NULL);
 }
 
+// populates an array with start values as char * then passes them to
+// pthread_create. The managing thread then waits via pthread_join
 void
 threads(mpz_t start, mpz_t stop)
 {
@@ -79,6 +87,9 @@ threads(mpz_t start, mpz_t stop)
 
   memset(starts, 0, sizeof(starts)); 
 
+  // populates the array with string representations of the mpz 
+  // These values are the starting values of the ranges the 
+  // threads will test.
   for(k = 0; k < PTHREAD_COUNT; ++k)
   {
     starts[k] = mpz_get_str(starts[k], DECIMAL, start);
@@ -86,6 +97,7 @@ threads(mpz_t start, mpz_t stop)
     mpz_add_ui(start, start, 1);
   }
 
+  // passes the start values to the threads
   for(k = 0; k < PTHREAD_COUNT; ++k)
   {
     ret = pthread_create(&ptid[k], NULL, &is_prime_wrapper, (void *) starts[k]);
@@ -94,6 +106,8 @@ threads(mpz_t start, mpz_t stop)
       exit(EXIT_FAILURE);
     }
   }
+
+  // wait for threads
   for(k = 0; k < PTHREAD_COUNT; ++k){
     ret = pthread_join(ptid[k], NULL);
     if(ret != 0){
