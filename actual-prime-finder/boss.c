@@ -1,8 +1,9 @@
 // Tacy Bechtel and Matthew Spohrer
 // Prime Finder
 //
-// This program takes in a very large number and finds the
-// prime numbers existing below that number
+// Takes a range of numbers and finds the primes 
+// within that range using a variety of systems programming
+// concepts and comparing their overheads.
 #include "prime-finder.h"
 
 void Pipe(int *fd);
@@ -45,7 +46,6 @@ init_numbers(mpz_t increment, mpz_t start, mpz_t stop, mpz_t number)
     mpz_sub(range, number, start);
     mpz_fdiv_q_ui(increment, range, CHILD_COUNT);
   }
-  //mpz_init_set_ui(start, 1);
 
   if(CHILD_COUNT < 2) 
     mpz_init_set(stop, number);
@@ -56,6 +56,8 @@ init_numbers(mpz_t increment, mpz_t start, mpz_t stop, mpz_t number)
   }
 }
 
+// gets the range of number from the user and initializes
+// max number and min number
 int
 get_num(mpz_t min_exp, mpz_t max_exp)
 {
@@ -354,7 +356,7 @@ pipes(mpz_t start, mpz_t stop, mpz_t increment, mpz_t max_exp)
   }
 }
 
-// calls the child process.
+// converts the mpz ints to char * to be passed through exec
 void
 call_child(mpz_t start, mpz_t stop, int fds[2])
 {
@@ -455,14 +457,15 @@ main(int argc, char *argv[])
       default:
         exit(EXIT_FAILURE);
     }
-
-  get_num(start, max_exp);
+  
+  get_num(start, max_exp); // get range from user
 
   init_numbers(increment, start, stop, max_exp);
   mpz_init(INCREMENT);
   mpz_init(diff);
         
   gettimeofday(&time_start, NULL);
+
   // if the user want no children, the finder is called here
   // otherwise call the number of children asked for.
   if(CHILD_COUNT == 0) {
@@ -488,6 +491,7 @@ main(int argc, char *argv[])
   exit(EXIT_SUCCESS);
 }
 
+// wrapper that allows pthread_create to call the is_prime function
 void *
 is_prime_wrapper(void *arg)
 {
@@ -496,6 +500,8 @@ is_prime_wrapper(void *arg)
   mpz_init(stop);
   mpz_init(remainder);
   mpz_add(stop, start, INCREMENT);
+
+  // ensures never checking even numbers
   if(mpz_cdiv_r_ui(remainder, start, 2) == 0)
     mpz_add_ui(start,start,1);
   
@@ -509,6 +515,8 @@ is_prime_wrapper(void *arg)
   pthread_exit(NULL);
 }
 
+// populates an array with start values as char * then passes them to
+// pthread_create. The managing thread then waits via pthread_join
 void
 threads(mpz_t start, mpz_t stop)
 {
@@ -518,6 +526,9 @@ threads(mpz_t start, mpz_t stop)
   
   memset(starts, 0, sizeof(starts)); 
 
+  // populates the array with string representations of the mpz 
+  // These values are the starting values of the ranges the 
+  // threads will test.
   for(k = 0; k < PTHREAD_COUNT; ++k)
   {
     starts[k] = mpz_get_str(starts[k], DECIMAL, start);
@@ -525,6 +536,7 @@ threads(mpz_t start, mpz_t stop)
     mpz_add_ui(start, start, 1);
   }
 
+  // passes the start values to the threads
   for(k = 0; k < PTHREAD_COUNT; ++k)
   {
     ret = pthread_create(&ptid[k], NULL, &is_prime_wrapper, (void *) starts[k]);
@@ -533,6 +545,8 @@ threads(mpz_t start, mpz_t stop)
       exit(EXIT_FAILURE);
     }
   }
+
+  // wait for threads
   for(k = 0; k < PTHREAD_COUNT; ++k){
     ret = pthread_join(ptid[k], NULL);
     if(ret != 0){
@@ -544,6 +558,8 @@ threads(mpz_t start, mpz_t stop)
     if(starts[k]) free(starts[k]);
 }
 
+// checks if the number sent to it is a prime number. Starts at
+// 3 and goes until the square root of the number being checked. 
 void 
 is_prime(mpz_t num_to_check)
 {
@@ -566,21 +582,20 @@ is_prime(mpz_t num_to_check)
   {
     mpz_cdiv_r(remainder, num_to_check, dividend);
 
-    // if remainder == 0, reult is fail
+    // if remainder == 0, result is fail
     if((rem = mpz_cmp_ui(remainder,0)) == 0) break;
     
     mpz_add_ui(dividend, dividend, 2);
   }
 
-  //gmp_fprintf(stderr, "here %Zd\n", num_to_check);
-  fflush(NULL);
   if(rem != 0)
     gmp_printf("%Zd ", num_to_check);
-  fflush(NULL);
 
   mpz_clears(dividend, up_limit, remainder, NULL);
 }
 
+// if no threads are requested by the user, the single, main thread
+// of control cycles through the range checking if prime.
 void
 no_threads(mpz_t num_to_check, mpz_t stop)
 {
