@@ -230,11 +230,8 @@ io_daemonize(int fds[CHILD_COUNT + 1][2])
       exit(EXIT_FAILURE);
     }
 
-    if (Polling(fds) == CHILD_COUNT) {
-      exit(EXIT_SUCCESS);
-    } else {
-      exit(EXIT_FAILURE);
-    }
+    Polling(fds);
+    exit(EXIT_SUCCESS);
   }
 }
 
@@ -391,9 +388,11 @@ no_pipes(mpz_t start, mpz_t stop, mpz_t increment, mpz_t max_exp) {
   if ((pid = Fork()) == 0 ) {
     Polling(fds);
     exit(EXIT_SUCCESS);
+  } else {
+    for(i = 0; i < CHILD_COUNT; ++i)
+      wait(NULL);
+    write(fds[CHILD_COUNT][0], "done", 4);
   }
-  for(i = 0; i < CHILD_COUNT; ++i)
-    wait(NULL);
 }
 
 int
