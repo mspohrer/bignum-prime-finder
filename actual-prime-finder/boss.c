@@ -384,7 +384,7 @@ no_pipes(mpz_t start, mpz_t stop, mpz_t increment, mpz_t max_exp) {
 int
 main(int argc, char *argv[])
 {
-  mpz_t start, stop, increment, max_exp;
+  mpz_t start, stop, increment, max_exp, diff;
   struct timeval time_start, time_stop, time_diff;
 
   int opt;
@@ -425,12 +425,19 @@ main(int argc, char *argv[])
   get_num(start, max_exp);
 
   init_numbers(increment, start, stop, max_exp);
+  mpz_init(INCREMENT);
+  mpz_init(diff);
         
   gettimeofday(&time_start, NULL);
   // if the user want no children, the finder is called here
   // otherwise call the number of children asked for.
   if(CHILD_COUNT == 0) {
-    finder(start, stop);
+    if(PTHREAD_COUNT > 0){
+      mpz_sub(diff, stop, start);
+      mpz_cdiv_q_ui(INCREMENT, diff, PTHREAD_COUNT);
+      threads(start,stop);
+    } else
+      finder(start, stop);
   } else if (PIPES == 1) {
     pipes(start, stop, increment, max_exp);
   } else {
@@ -441,66 +448,69 @@ main(int argc, char *argv[])
 
   timersub(&time_stop, &time_start, &time_diff);
 
-  sleep(5);
   printf("%ld Seconds; %ld Microseconds\n",time_diff.tv_sec, time_diff.tv_usec);
-  mpz_clears(max_exp, start, stop, increment, NULL);
+  mpz_clears(max_exp, start, stop, increment, INCREMENT, NULL);
 
   exit(EXIT_SUCCESS);
 }
 
 void *
-is_prime_wrapper(void *num)
+is_prime_wrapper(void *arg)
 {
-  mpz_t num_to_check;
-  mpz_init_set_str(num_to_check, num, DECIMAL);
-  is_prime(num_to_check);
-  mpz_clear(num_to_check);
+  mpz_t start, stop, remainder;
+  mpz_init_set_str(start, arg, DECIMAL);
+    gmp_printf("%Zd\n", start);
+  mpz_init(stop);
+  mpz_init(remainder);
+  mpz_add(stop, start, INCREMENT);
+  if(mpz_cdiv_r_ui(remainder, start, 2) == 0)
+    mpz_add_ui(start,start,1);
+  
+  while(mpz_cmp(start,stop) <= 0)
+  {
+    is_prime(start);
+    mpz_add_ui(start, start, 2);
+  }
+
+  mpz_clears(remainder, stop, start, NULL);
   pthread_exit(NULL);
 }
 
-// oof, this is kind of wonky. When passing iterated numbers through 
-// pthread_create, the pointer sometimes is pointing to the same data
-// as the previously created thread. The setup with the num[] prevents 
-// prevents that from happening. Concurrency is a pain!
 void
-threads(mpz_t num_to_check, mpz_t stop)
+threads(mpz_t start, mpz_t stop)
 {
-  int j, k, i, ret;
+  int k, ret;
   pthread_t ptid[PTHREAD_COUNT];
-  void *rval = NULL;
-  char *num[PTHREAD_COUNT];
+  char *starts[PTHREAD_COUNT];
   
+  printf("threads\n");
+  memset(starts, 0, sizeof(starts)); 
+
   for(k = 0; k < PTHREAD_COUNT; ++k)
-    num[k] = 0;
-
-  k = 0;
-  i = 0;
-  while(mpz_cmp(num_to_check,stop) <= 0)
   {
+    starts[k] = mpz_get_str(starts[k], DECIMAL, start);
+    mpz_add(start, start, INCREMENT);
+    mpz_add_ui(start, start, 1);
+  }
 
-    for(j = i; j < PTHREAD_COUNT; ++j){
-      if(num[k]) num[k] = 0;
-      num[k] = mpz_get_str(num[k], DECIMAL, num_to_check);
-      ret = pthread_create(&ptid[j], NULL, &is_prime_wrapper,(void*)num[k]);
-      if(ret != 0){
-        perror("threads()");
-        exit(EXIT_FAILURE);
-      }
-      mpz_add_ui(num_to_check, num_to_check, 2);
-      ++i;
-      ++k;
-      if(k >= PTHREAD_COUNT) k = 0;
-    }
-
-    for(k = 0; k < PTHREAD_COUNT; ++k){
-      ret = pthread_join(ptid[k], rval);
-      if(ret != 0){
-        perror("threads()");
-        exit(EXIT_FAILURE);
-      }
-      --i;
+  for(k = 0; k < PTHREAD_COUNT; ++k)
+  {
+    ret = pthread_create(&ptid[k], NULL, &is_prime_wrapper, (void *) starts[k]);
+    if(ret != 0){
+      perror("threads()");
+      exit(EXIT_FAILURE);
     }
   }
+  for(k = 0; k < PTHREAD_COUNT; ++k){
+    ret = pthread_join(ptid[k], NULL);
+    if(ret != 0){
+      perror("threads()");
+      exit(EXIT_FAILURE);
+    }
+  }
+  for(k = PTHREAD_COUNT - 1; k >= 0; --k)
+    if(starts[k]) free(starts[k]);
+//  if(starts != NULL) free(starts);
 }
 
 void 

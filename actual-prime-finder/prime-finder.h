@@ -21,6 +21,7 @@ int PTHREAD_COUNT = 0;
 int TEST = 0;
 int IODAEMON = 0;
 int PIPES = 0;
+mpz_t INCREMENT;
 #define DECIMAL 10
 #define NUM_OPTS 4
 #define MAX_LINE_IN sysconf(_SC_LINE_MAX)

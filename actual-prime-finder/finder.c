@@ -8,7 +8,7 @@
 #include "prime-finder.h"
 
 //struct node *head;
-mpz_t INCREMENT;
+
 void 
 is_prime(mpz_t num_to_check)
 {
@@ -36,8 +36,8 @@ is_prime(mpz_t num_to_check)
     
     mpz_add_ui(dividend, dividend, 2);
   }
- // if(rem != 0)
-//    gmp_printf("%Zd is prime\n", num_to_check);
+  if(rem != 0)
+    gmp_printf("%Zd is prime\n", num_to_check);
 }
 
 void
@@ -53,11 +53,14 @@ no_threads(mpz_t num_to_check, mpz_t stop)
 void *
 is_prime_wrapper(void *arg)
 {
-  mpz_t start, stop;
+  mpz_t start, stop, remainder;
   mpz_init_set_str(start, arg, DECIMAL);
     gmp_printf("%Zd\n", start);
   mpz_init(stop);
+  mpz_init(remainder);
   mpz_add(stop, start, INCREMENT);
+  if(mpz_cdiv_r_ui(remainder, start, 2) == 0)
+    mpz_add_ui(start,start,1);
   
   while(mpz_cmp(start,stop) <= 0)
   {
@@ -65,26 +68,16 @@ is_prime_wrapper(void *arg)
     mpz_add_ui(start, start, 2);
   }
 
+  mpz_clears(remainder, stop, start, NULL);
   pthread_exit(NULL);
 }
 
-// oof, this is kind of wonky. When passing iterated numbers through 
-// pthread_create, the pointer sometimes is pointing to the same data
-// as the previously created thread. The setup with the num[] prevents 
-// prevents that from happening. Concurrency is a pain!
 void
 threads(mpz_t start, mpz_t stop)
 {
   int k, ret;
   pthread_t ptid[PTHREAD_COUNT];
   char *starts[PTHREAD_COUNT];
-  mpz_t diff;
-  
-  mpz_init(INCREMENT);
-  mpz_init(diff);
-  
-  mpz_sub(diff, stop, start);
-  mpz_cdiv_q_ui(INCREMENT, diff, PTHREAD_COUNT);
 
   memset(starts, 0, sizeof(starts)); 
 
@@ -97,7 +90,6 @@ threads(mpz_t start, mpz_t stop)
 
   for(k = 0; k < PTHREAD_COUNT; ++k)
   {
-    //printf("threads %Zd\n", starts[k]);
     ret = pthread_create(&ptid[k], NULL, &is_prime_wrapper, (void *) starts[k]);
     if(ret != 0){
       perror("threads()");
@@ -111,6 +103,8 @@ threads(mpz_t start, mpz_t stop)
       exit(EXIT_FAILURE);
     }
   }
+  for(k = PTHREAD_COUNT - 1; k >= 0; --k)
+    if(starts[k]) free(starts[k]);
 }
 
   //gmp_printf("increment %Zd\n", increment);
@@ -216,7 +210,7 @@ init_node()
 int
 main(int argc, char **argv)
 {
-  mpz_t start, stop, remainder, num_to_check;
+  mpz_t start, stop, remainder, num_to_check, diff;
   char buf[BUFSIZ], buf2[MAX_LINE_IN];
   int read_in;
   FILE *filein;
@@ -250,8 +244,10 @@ main(int argc, char **argv)
     mpz_init_set_str(stop, buf2, 10);
     PTHREAD_COUNT = atoi(argv[1]);
   }
-  mpz_init_set(num_to_check, start);
   mpz_init(remainder);
+  mpz_init(diff);
+  mpz_init(INCREMENT);
+  mpz_init_set(num_to_check, start);
   mpz_cdiv_r_ui(remainder, num_to_check, 2);
 
   // makes start odd to ensure only odd numbers are checked
@@ -260,9 +256,11 @@ main(int argc, char **argv)
 
   if(PTHREAD_COUNT == 0)
     no_threads(num_to_check, stop);
-  else
+  else {
+    mpz_sub(diff, stop, start);
+    mpz_cdiv_q_ui(INCREMENT, diff, PTHREAD_COUNT);
     threads(num_to_check, stop);
+  }
 
-  mpz_clears(start, stop, remainder, num_to_check, NULL);
-  //write(STDOUT_FILENO, "-1\n", 2);
+  mpz_clears(start, stop, remainder, num_to_check, diff, INCREMENT, NULL);
 }
