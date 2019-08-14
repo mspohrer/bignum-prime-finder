@@ -115,8 +115,9 @@ finder(mpz_t begin, mpz_t end)
   }
   stdout_reopen = dup(STDOUT_FILENO);
   dup2(fds[0][1], STDOUT_FILENO);
-  if(PTHREAD_COUNT == 0)
+  if(PTHREAD_COUNT == 0){
     no_threads(num_to_check, stop);
+  }
   else
     threads(num_to_check, stop);
   if ((pid = Fork()) == 0) {
@@ -448,6 +449,7 @@ main(int argc, char *argv[])
 
   timersub(&time_stop, &time_start, &time_diff);
 
+  sleep(10);
   printf("%ld Seconds; %ld Microseconds\n",time_diff.tv_sec, time_diff.tv_usec);
   mpz_clears(max_exp, start, stop, increment, INCREMENT, NULL);
 
@@ -483,7 +485,6 @@ threads(mpz_t start, mpz_t stop)
   pthread_t ptid[PTHREAD_COUNT];
   char *starts[PTHREAD_COUNT];
   
-  printf("threads\n");
   memset(starts, 0, sizeof(starts)); 
 
   for(k = 0; k < PTHREAD_COUNT; ++k)
@@ -510,7 +511,6 @@ threads(mpz_t start, mpz_t stop)
   }
   for(k = PTHREAD_COUNT - 1; k >= 0; --k)
     if(starts[k]) free(starts[k]);
-//  if(starts != NULL) free(starts);
 }
 
 void 
@@ -541,8 +541,11 @@ is_prime(mpz_t num_to_check)
     mpz_add_ui(dividend, dividend, 2);
   }
 
+  gmp_fprintf(stderr, "here %Zd\n", num_to_check);
+  fflush(NULL);
   if(rem != 0)
     gmp_printf("%Zd is prime\n", num_to_check);
+  fflush(NULL);
 
   mpz_clears(dividend, up_limit, remainder, NULL);
 }

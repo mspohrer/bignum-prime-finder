@@ -7,8 +7,6 @@
 
 #include "prime-finder.h"
 
-//struct node *head;
-
 void 
 is_prime(mpz_t num_to_check)
 {
